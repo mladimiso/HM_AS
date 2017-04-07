@@ -13,6 +13,7 @@
 #define STOP_DELIMITER													0x0a // '\n'
 #define START_FIELD															0x23 // '#'
 #define STOP_FIELD															0x2c // ','
+#define EMISSION_DEMAND													1
 
 #define MAX_BUFFER_LENGHT												256
 //*****************************************************************************
@@ -122,21 +123,26 @@ void communicationTread(void const *arg)
 	uint8_t rxIndex;
 	uint8_t txIndex;
 	eDLLState_t state;
-	CircularBuffer_t *cBuffer;
+	CircularBuffer_t *cRxBuffer;
+	CircularBuffer_t *cTxBuffer;
 	
 	if (PC == port)
 	{
-		state = statePC;
-		cBuffer = &rxCBufferPC;
-		rxBuffer = rxBufferPC;
-		rxIndex = rxBufferPCIndex;
+		state 			= statePC;
+		cRxBuffer 	= &rxCBufferPC;
+		rxBuffer 		= rxBufferPC;
+		rxIndex 		= rxBufferPCIndex;
+		cTxBuffer		= &txBufferPC;
+		txBuffer		= txBufferPC;
 	}
 	else if (CC2530 == port)
 	{
-		state = stateCC2530;
-		cBuffer = &rxCBufferCC2530;
-		rxBuffer = rxBufferCC2530;
-		rxIndex = rxBufferCC2530Index;
+		state 			= stateCC2530;
+		cRxBuffer 	= &rxCBufferCC2530;
+		rxBuffer 		= rxBufferCC2530;
+		rxIndex 		= rxBufferCC2530Index;
+		cTxBuffer		= &txBufferCC2530;
+		txBuffer		= txBufferCC2530;
 	}
 	
 	while (1)
@@ -144,7 +150,7 @@ void communicationTread(void const *arg)
 		switch (state)
 		{
 			case IDLE:
-				if (circularGet(cBuffer, &tmp))
+				if (circularGet(cRxBuffer, &tmp))
 				{
 					if (START_DELIMITER == tmp)
 					{
@@ -156,11 +162,19 @@ void communicationTread(void const *arg)
 						state = IDLE;
 					}
 				}
+				if(EMISSION_DEMAND)
+				{
+					state = EMISSION_START;
+				}
+				else
+				{
+					state = IDLE;
+				}
 				break;
 			case RECEPTION:
 				do
 				{
-					if (circularGet(cBuffer, &tmp))
+					if (circularGet(cRxBuffer, &tmp))
 					{
 						if (START_DELIMITER == tmp)
 						{
@@ -176,12 +190,31 @@ void communicationTread(void const *arg)
 				//
 				// process frame on the proper way!
 				//
-				proccessFrame(rxBuffer);
+				p
 				break;
 			case EMISSION_START:
-				
+				// kako konvertovati u karaktere kojim punimo cirkularni bufer
+				do
+				{
+					if(START_DELIMITER == tmp)
+					{
+						txIndex = 0;
+					}
+					else
+					{
+						tmp = txBuffer[txIndex];
+						circularPut(cTxBuffer, &tmp);
+						txIndex++;
+					}
+				}
+				while(STOP_DELIMITER != tmp)
+				if(STOP_DELIMITER == tmp)
+				{
+					state = EMISSION;
+				}
 				break;
 			case EMISSION:
+				
 				break;
 				
 			default:
