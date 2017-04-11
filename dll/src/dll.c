@@ -16,6 +16,7 @@
 #define EMISSION_DEMAND													1
 
 #define MAX_BUFFER_LENGHT												256
+#define CHECK_SUM_OFFSET												2
 //*****************************************************************************
 //
 // A mapping of devices address to signal_id number.
@@ -48,9 +49,12 @@ typedef enum eDLLState
 //
 //*****************************************************************************
 static uint8_t getSignalID(const uint16_t devicesAddress);
+static uint8_t checksum(uint8_t *frame, 
+												uint8_t len, 
+												uint8_t cs);
+static uint8_t proccessFrame(uint8_t *frame, 
+															uint8_t len);
 
-static uint8_t proccessFrame(uint8_t *frame, uint8_t len);
-static void checksum(void);
 static void checkDevAddr(void);
 
 
@@ -81,16 +85,7 @@ CircularBuffer_t rxBufferCC2530;
 //*****************************************************************************
 eDLLState_t statePC;
 eDLLState_t stateCC2530;
-
-uint8_t rxBufferPC[MAX_BUFFER_LENGHT];
-uint8_t txBufferPC[MAX_BUFFER_LENGHT];
-uint8_t rxBufferCC2530[MAX_BUFFER_LENGHT];
-uint8_t txBufferCC2530[MAX_BUFFER_LENGHT];
-
-uint8_t rxBufferPCIndex;
-uint8_t txBufferPCIndex;
-uint8_t rxBufferCC2530Index;
-uint8_t txBufferCC2530Index;
+DLLPacket_t *recPack;
 
 //*****************************************************************************
 //
@@ -102,10 +97,6 @@ void dllInit(void)
 	statePC = IDLE;
 	stateCC2530 = IDLE;
 	
-	rxBufferPCIndex = 0;
-	txBufferPCIndex = 0;
-	rxBufferCC2530Index = 0;
-	txBufferCC2530Index = 0;
 
 
 
@@ -118,31 +109,25 @@ void communicationTread(void const *arg)
 	uint8_t port  = *(uint8_t *)(arg);
 	char tmp;
 	
-	uint8_t *rxBuffer;
-	uint8_t *txBuffer;
-	uint8_t rxIndex;
-	uint8_t txIndex;
-	eDLLState_t state;
-	CircularBuffer_t *cRxBuffer;
-	CircularBuffer_t *cTxBuffer;
-	
 	if (PC == port)
 	{
-		state 			= statePC;
-		cRxBuffer 	= &rxCBufferPC;
-		rxBuffer 		= rxBufferPC;
-		rxIndex 		= rxBufferPCIndex;
-		cTxBuffer		= &txBufferPC;
-		txBuffer		= txBufferPC;
+		eDLLState_t state = statePC;
+		uint8_t uiRxBufferPC[MAX_BUFFER_LENGHT];
+		uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
+		uint8_t rxBufferPCIndex = 0;
+		uint8_t txBufferPCIndex = 0;
+		CircilarBuffer_t cTxBufferPC;
+		CircilarBuffer_t *cRxBuffer = &rxBufferPC;
 	}
 	else if (CC2530 == port)
 	{
-		state 			= stateCC2530;
-		cRxBuffer 	= &rxCBufferCC2530;
-		rxBuffer 		= rxBufferCC2530;
-		rxIndex 		= rxBufferCC2530Index;
-		cTxBuffer		= &txBufferCC2530;
-		txBuffer		= txBufferCC2530;
+		eDLLState_t state = stateCC2530;
+		uint8_t uiRxBufferCC2530[MAX_BUFFER_LENGHT];
+		uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
+		uint8_t rxBufferCC2530Index;
+		uint8_t txBufferCC2530Index;
+		CircularBuffer_t cTxBufferCC2530;
+		CircilarBuffer_t *cRxBuffer = &rxBufferCC2530;
 	}
 	
 	while (1)
@@ -150,7 +135,7 @@ void communicationTread(void const *arg)
 		switch (state)
 		{
 			case IDLE:
-				if (circularGet(cRxBuffer, &tmp))
+				if (circularGet(cRxBuffer, &tmp))	//zastita!!!
 				{
 					if (START_DELIMITER == tmp)
 					{
@@ -162,10 +147,6 @@ void communicationTread(void const *arg)
 						state = IDLE;
 					}
 				}
-				if(EMISSION_DEMAND)
-				{
-					state = EMISSION_START;
-				}
 				else
 				{
 					state = IDLE;
@@ -174,7 +155,7 @@ void communicationTread(void const *arg)
 			case RECEPTION:
 				do
 				{
-					if (circularGet(cRxBuffer, &tmp))
+					if (circularGet(cRxBuffer, &tmp)) // zastita!!!
 					{
 						if (START_DELIMITER == tmp)
 						{
@@ -190,34 +171,35 @@ void communicationTread(void const *arg)
 				//
 				// process frame on the proper way!
 				//
-				p
-				break;
-			case EMISSION_START:
-				// kako konvertovati u karaktere kojim punimo cirkularni bufer
-				do
-				{
-					if(START_DELIMITER == tmp)
-					{
-						txIndex = 0;
-					}
-					else
-					{
-						tmp = txBuffer[txIndex];
-						circularPut(cTxBuffer, &tmp);
-						txIndex++;
-					}
-				}
-				while(STOP_DELIMITER != tmp)
-				if(STOP_DELIMITER == tmp)
-				{
-					state = EMISSION;
-				}
-				break;
-			case EMISSION:
 				
 				break;
+			// case EMISSION_START:
+				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
+				// do
+				// {
+					// if(START_DELIMITER == tmp)
+					// {
+						// txIndex = 0;
+					// }
+					// else
+					// {
+						// tmp = txBuffer[txIndex];
+						// circularPut(cTxBuffer, &tmp);
+						// txIndex++;
+					// }
+				// }
+				// while(STOP_DELIMITER != tmp)
+				// if(STOP_DELIMITER == tmp)
+				// {
+					// state = EMISSION;
+				// }
+				// break;
+			// case EMISSION:
+				
+				// break;
 				
 			default:
+				// error state!!!
 				break;
 		}
 	}
@@ -235,4 +217,41 @@ static uint8_t getSignalID(const uint16_t deviceAddress);
 		}
 	}
 	return retVal;
+}
+
+static uint8_t proccessFrame(uint8_t *frame, 
+															uint8_t len)
+{
+	uint8_t tmpCS = atoi(frame[len - CHECK_SUM_OFFSET]);
+	if (checksum(frame, tmpCs))
+	{
+		int i1;
+		int i2;
+		int i3;
+		int i4;
+		int i5;
+		sscanf(frame,
+					"%*[^0123456789]%d\
+					 %*[^0123456789]%d\
+					 %*[^0123456789]%d\
+					 %*[^0123456789]%d\
+					 %*[^0123456789]%d",
+					 &i1,
+					 &i2,
+					 &i3,
+					 &i4,
+					 &i5);
+		recPack->devAddr = SignalID[i1];
+		recPack->packNum = i2 & 0xff;
+		recPack->data = i3 & 0xffffffff;
+		recPack->timeStamp = i4 & 0xff;
+		recPack->checkSum = i5 & 0xff;
+		}
+	}
+
+static uint8_t checksum(uint8_t *frame, 
+												uint8_t len, 
+												uint8_t cs);
+{
+	
 }
