@@ -11,8 +11,8 @@
 
 
 // ISR receive buffer
-extern CircularBuffer_t rxBuffer0;
-extern CircularBuffer_t rxBuffer1;
+extern CircularBuffer_t rxBufferPC;
+extern CircularBuffer_t rxBufferCC2530;
 extern CircularBuffer_t rxBuffer2;
 
 

@@ -152,12 +152,14 @@ void halUARTInit(void)
  {
 	 #ifdef __CMSIS_RTOS__
 			uint32_t ulStatus;
+			uint8_t tmp;
 			ulStatus = (uint32_t)UARTIntStatus(UART0_BASE, true);
 			UARTIntClear(UART0_BASE, ulStatus);
 			
 			if(ulStatus & (UART_INT_RX))
 			{
-				isrCounter++; 
+				tmp = (uint8_t)UARTCharGet(UART0_BASE);
+				circularPut(&rxBufferPC, tmp);
 			}
 		
 	 #else
@@ -190,7 +192,8 @@ void halUARTInit(void)
 			
 			if(ulStatus & (UART_INT_RX))
 			{
-				isr1Counter++; 
+				 tmp = (uint8_t)UARTCharGet(UART1_BASE);
+				 circularPut(&rxBufferCC2530, tmp);
 			}
 		
 	
@@ -207,7 +210,7 @@ void halUARTInit(void)
 				while(UARTCharsAvail(UART1_BASE))
 				{
 						tmp = (uint8_t)UARTCharGet(UART1_BASE);
-//						circularPut(&rxBuffer1, tmp);
+			//			circularPut(&rxBuffer1, tmp);
 				}	
 			}
 	 #endif
