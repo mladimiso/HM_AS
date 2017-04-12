@@ -53,9 +53,10 @@ static uint8_t checksum(uint8_t *frame,
 												uint8_t len, 
 												uint8_t cs);
 static uint8_t proccessFrame(uint8_t *frame, 
-															uint8_t len);
+															uint8_t len, 
+																	void (*update)(uint32_t data, uint16_t devID));
 
-static void checkDevAddr(void);
+static void checkdevID(void);
 
 
 
@@ -167,10 +168,17 @@ void communicationTread(void const *arg)
 						}
 					}
 				} while(STOP_DELIMITER == tmp);
-				state = IDLE;
-				//
+				state = IDLE;				//
 				// process frame on the proper way!
 				//
+				if(port == CC2530)
+				{
+					proccessFrame(rxBuffer, rxIndex, updateData(recPack->data, recPack->devID));
+				}
+				else if(port == PC)
+				{
+					proccessFrame(rxBuffer, rxIndex, updateCmd(recPack->data, recPack->devID));
+				}
 				
 				break;
 			// case EMISSION_START:
@@ -219,8 +227,10 @@ static uint8_t getSignalID(const uint16_t deviceAddress);
 	return retVal;
 }
 
-static uint8_t proccessFrame(uint8_t *frame, 
-															uint8_t len)
+static uint8_t proccessFrame(	uint8_t *frame, 
+										uint8_t len,
+										void (*update)(uint32_t data, uint16_t devID)
+									)										
 {
 	uint8_t tmpCS = atoi(frame[len - CHECK_SUM_OFFSET]);
 	if (checksum(frame, tmpCs))
@@ -241,11 +251,12 @@ static uint8_t proccessFrame(uint8_t *frame,
 					 &i3,
 					 &i4,
 					 &i5);
-		recPack->devAddr = SignalID[i1];
+		recPack->devID = SignalID[i1];
 		recPack->packNum = i2 & 0xff;
 		recPack->data = i3 & 0xffffffff;
 		recPack->timeStamp = i4 & 0xff;
 		recPack->checkSum = i5 & 0xff;
+		update(data, devID);
 		}
 	}
 
@@ -255,3 +266,5 @@ static uint8_t checksum(uint8_t *frame,
 {
 	
 }
+
+

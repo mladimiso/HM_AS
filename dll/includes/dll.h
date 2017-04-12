@@ -25,7 +25,7 @@
 
 typedef struct sDLLPacket_t
 {
-	uint8_t devAddr;
+	uint16_t devID;
 	uint8_t packNum;
 	uint32_t data;
 	uint8_t timeStamp;

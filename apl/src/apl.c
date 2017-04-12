@@ -11,7 +11,7 @@
 // treba promijeniti naziv ova dva bafera u circularBuffer.h
 //
 //*****************************************************************************
-
+DLLPacket_t* app_packet;
 
 
 //*****************************************************************************
@@ -36,22 +36,14 @@ void aplInit(void)
 
 }
 
-void aplSendData(uint32_t data, uint16_t devAddr, uin8_t port)
+void aplSendData(uint32_t data, uint16_t devID, uin8_t port)
 {
-  DLLPacket_t *dllPckt;
-  dllPckt->data = data;
-  dllPckt->devAddr = devAddr;
-  dllDataRequest(dllPckt, port);
+  //DLLPacket_t *app_packet;
+  app_packet->data = data;
+  app_packet->devID = devID;
+  dllDataRequest(app_packet, port);
 }
 
-void aplReadData(uint32_t *data, uint16_t *devAddr, uin8_t port)
-{
-  DLLPacket_t *dllPckt;
-  dllReadRequest(dllPckt, port);
-  *data = dllPckt->data;
-  *devAddr = dllPckt->devAddr;
-
-}
 
 
 void updateData(uint32_t data, uint16_t devID)
@@ -68,6 +60,19 @@ void updateData(uint32_t data, uint16_t devID)
   appData[i].data = data;
 }
 
+void updateCmd(uint32_t data, uint16_t devID)
+{
+  int i = 0;
+  while(appData[i].devID != 0 && appData[i].devID != devID && i<20)
+  {
+    i++;
+  }
+  if(appData[i].devID != devID)
+  {
+      appData[i].devID = devID;
+  }
+  appData[i].cmd = data;
+}
 uint32_t getData(uint16_t devID)
 {
   int i = 0;
@@ -86,8 +91,8 @@ uint32_t getData(uint16_t devID)
 void aplProcessCommand(void)
 {
   uint32_t data = 0;
-  uint16_t devAddr = 0;
-  aplReadData(&data, &devAddr, PC);
-  aplSendData(data, devAddr, CC2530);
+  uint16_t devID = 0;
+  aplReadData(&data, &devID, PC);
+  aplSendData(data, devID, CC2530);
 
 }
