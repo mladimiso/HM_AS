@@ -287,8 +287,9 @@ static uint8_t proccessFrameRx(	CircularBuffer_t *frame,
 			if (devAddressSupport(recPack->appData.devID))
 			{
 				callBack((struct sData *)(recPack));
-				return 0;
+
 			}
+			return 0;
 		}
 		else
 		{

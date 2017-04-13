@@ -187,6 +187,7 @@ void halUARTInit(void)
 	 #ifdef __CMSIS_RTOS__
 		
 			uint32_t ulStatus;
+			uint8_t tmp;
 			ulStatus = (uint32_t)UARTIntStatus(UART1_BASE, true);
 			UARTIntClear(UART1_BASE, ulStatus);
 			
