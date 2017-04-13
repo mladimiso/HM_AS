@@ -51,6 +51,6 @@ typedef void (*CallBack_t)(Data_t *);
 
 void dllInit(void);
 void CallBackRegister(CallBack_t cb);
-void dllDataRequest(DLLPacket_t *appData);
+void dllDataRequest(Data_t *appData, uint8_t port);
 
-#end //__DLL_H__
+#endif //__DLL_H__

@@ -1,7 +1,7 @@
-#include "dll\includes\dll.h"
-#include "hal\includes\hal_gpio.h"
-#include "hal\includes\hal_uart.h"
-
+#include "dll/includes/dll.h"
+#include "hal/includes/hal_gpio.h"
+#include "hal/includes/hal_uart.h"
+#include "common/includes/circular_buffer.h"
 
 //*****************************************************************************
 //
@@ -46,10 +46,8 @@ typedef enum eDLLState
 } eDLLState_t;
 
 
-
 uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
 uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
-
 //*****************************************************************************
 //
 // Internal/local functions
@@ -60,11 +58,14 @@ static uint8_t getSignalID(const uint16_t devicesAddress);
 static uint8_t checksum(DLLPacket_t *frame,
 												uint8_t cs
 												);
-static uint8_t proccessFrameRx(uint8_t *frame,
-															 uint8_t len,
+/*static uint8_t proccessFrame(CircularBuffer_t *frame,
+															uint8_t len,
+																	//void (*update)(uint32_t data, uint16_t devID));
+																	call_back back);*/
+static uint8_t proccessFrameRx(CircularBuffer_t *frame,
+															 uint8_t len
 															 );
 static uint8_t devAddressSupport(uint16_t devAddress);
-
 static void checkdevID(void);
 
 
@@ -114,33 +115,42 @@ void dllInit(void)
 
 }
 
-void CallBackRegister(CallBack_t cb)
-{
-	callBack = cb;
-}
 
 void communicationTread(void const *arg)
 {
 	uint8_t port  = *(uint8_t *)(arg);
-	char tmp;
-
+	//char tmp;
+	uint8_t tmp;
+	uint8_t rxIndex;
+	eDLLState_t state;
+	CircularBuffer_t *cRxBuffer;
 	if (PC == port)
 	{
-		eDLLState_t state = statePC;
+
 		uint8_t uiRxBufferPC[MAX_BUFFER_LENGHT];
+		uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
+		CircularBuffer_t cTxBufferPC;
+
 		uint8_t rxBufferPCIndex = 0;
+
 		uint8_t txBufferPCIndex = 0;
-		CircilarBuffer_t cTxBufferPC;
-		CircilarBuffer_t *cRxBuffer = &rxBufferPC;
+		state = statePC;
+		rxIndex = rxBufferPCIndex;
+		cRxBuffer = &rxBufferPC;
 	}
 	else if (CC2530 == port)
 	{
-		eDLLState_t state = stateCC2530;
+
 		uint8_t uiRxBufferCC2530[MAX_BUFFER_LENGHT];
-		uint8_t rxBufferCC2530Index;
-		uint8_t txBufferCC2530Index;
+		uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
 		CircularBuffer_t cTxBufferCC2530;
-		CircilarBuffer_t *cRxBuffer = &rxBufferCC2530;
+
+		uint8_t rxBufferCC2530Index = 0;
+
+		uint8_t txBufferCC2530Index = 0;
+		state = stateCC2530;
+		rxIndex = rxBufferCC2530Index;
+		cRxBuffer = &rxBufferCC2530;
 	}
 
 	while (1)
@@ -176,12 +186,23 @@ void communicationTread(void const *arg)
 						}
 						else
 						{
-							rxBuffer[rxIndex++] = tmp;
+							cRxBuffer->buffer[rxIndex++] = tmp;
 						}
 					}
 				} while(STOP_DELIMITER == tmp);
-				state = IDLE;				
-				proccessFrame(rxBuffer, rxIndex);
+				state = IDLE;				//
+				proccessFrameRx(cRxBuffer, rxIndex);
+				// process frame on the proper way!
+				//
+			/*	if(port == CC2530)
+				{
+					proccessFrame(cRxBuffer, rxIndex, updateData(recPack->data, recPack->devID));
+				}
+				else if(port == PC)
+				{
+					proccessFrame(cRxBuffer, rxIndex, updateCmd(recPack->data, recPack->devID));
+				}*/
+
 				break;
 			// case EMISSION_START:
 				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
@@ -215,7 +236,7 @@ void communicationTread(void const *arg)
 	}
 }
 
-static uint8_t getSignalID(const uint16_t deviceAddress);
+static uint8_t getSignalID(const uint16_t deviceAddress)
 {
 	uint8_t i;
 	uint8_t retVal = 255;
@@ -229,17 +250,21 @@ static uint8_t getSignalID(const uint16_t deviceAddress);
 	return retVal;
 }
 
-static uint8_t proccessFrame(	uint8_t *frame,
-															uint8_t len,
-															)
+static uint8_t proccessFrameRx(	CircularBuffer_t *frame,
+										uint8_t len
+										//void (*update)(uint32_t data, uint16_t devID)
+
+									)
 {
-		// ovaj dio se mora malo dotjerati!!!
+	uint8_t tmpCS = atoi((char *)frame->buffer[len - CHECK_SUM_OFFSET]);
+	/*if (checksum(frame, len, tmpCS))
+	{*/
 		int i1;
 		int i2;
 		int i3;
 		int i4;
 		int i5;
-		sscanf(frame,
+		sscanf((char *)frame,
 					"%*[^0123456789]%d\
 					 %*[^0123456789]%d\
 					 %*[^0123456789]%d\
@@ -250,28 +275,32 @@ static uint8_t proccessFrame(	uint8_t *frame,
 					 &i3,
 					 &i4,
 					 &i5);
-		recPack->devID = SignalID[i1];
+		recPack->appData.devID = signalID[i1];
 		recPack->packNum = i2 & 0xff;
-		recPack->data = i3 & 0xffffffff;
+		recPack->appData.data = i3 & 0xffffffff;
 		recPack->timeStamp = i4 & 0xff;
 		recPack->checkSum = i5 & 0xff;
-		
-		if (checksum(recPack, tmpCs))
+		//back(recPack->data, recPack->devID);
+		//}
+		if (checksum(recPack, tmpCS))
 		{
-			if (devAddressSupport(recPack->devID))
+			if (devAddressSupport(recPack->appData.devID))
 			{
 				callBack((struct sData *)(recPack));
+				return 0;
 			}
 		}
 		else
 		{
-			error_checkSum();
+			//error_checkSum();
 			recPack = NULL;
+			return 1;
 		}
-	}
 
-static uint8_t checksum(DLLPacket_t *frame,  
-												uint8_t cs);
+}
+
+static uint8_t checksum(DLLPacket_t *frame,
+												uint8_t cs)
 {
 	uint8_t sum  = 0x00;
 	uint8_t *ptr = (uint8_t *)(frame);
@@ -281,15 +310,15 @@ static uint8_t checksum(DLLPacket_t *frame,
 		sum ^= *ptr;
 		ptr++;
 	}
-	
+
 	return (sum == cs);
-	
+
 }
 
 static uint8_t devAddressSupport(uint16_t devAddress)
 {
-	return( (devAddress == TEMP_SENSOR_INSIDE) || 
-					(devAddress == TEMP_SENSOR_OUTSIDE) || 
+	return( (devAddress == TEMP_SENSOR_INSIDE) ||
+					(devAddress == TEMP_SENSOR_OUTSIDE) ||
 					(devAddress == PRESSURE_SENSOR_INSIDE) ||
  					(devAddress == PRESSURE_SENSOR_OUTSIDE) ||
 					(devAddress == HUMIDITY_SENSOR_INSIDE) ||
@@ -298,4 +327,13 @@ static uint8_t devAddressSupport(uint16_t devAddress)
 					(devAddress == WINDOW) ||
 					(devAddress == MOTION_SENSOR)
 					);
+}
+
+void CallBackRegister(CallBack_t cb)
+{
+	callBack = cb;
+}
+void dllDataRequest(Data_t *appData, uint8_t port)
+{
+
 }
