@@ -5,10 +5,14 @@
 
 //*****************************************************************************
 //
-// Values that determines start and stop of each frame as well as start and 
-// stop of each field of received data 
+// Values that determines start and stop of each frame as well as start and
+// stop of each field of received data
 //
 //*****************************************************************************
+//typedef void (*call_back) (S32, S32);
+typedef void (*call_back)(uint32_t, uint16_t);
+
+
 #define START_DELIMITER													0x3e // '>'
 #define STOP_DELIMITER													0x0a // '\n'
 #define START_FIELD															0x23 // '#'
@@ -48,13 +52,17 @@ typedef enum eDLLState
 // \just defining functionality/
 //
 //*****************************************************************************
+call_back back;
+back = updateData;
+
 static uint8_t getSignalID(const uint16_t devicesAddress);
-static uint8_t checksum(uint8_t *frame, 
-												uint8_t len, 
+static uint8_t checksum(uint8_t *frame,
+												uint8_t len,
 												uint8_t cs);
-static uint8_t proccessFrame(uint8_t *frame, 
-															uint8_t len, 
-																	void (*update)(uint32_t data, uint16_t devID));
+static uint8_t proccessFrame(uint8_t *frame,
+															uint8_t len,
+																	//void (*update)(uint32_t data, uint16_t devID));
+																	call_back back);
 
 static void checkdevID(void);
 
@@ -62,7 +70,7 @@ static void checkdevID(void);
 
 //*****************************************************************************
 //
-// CMSIS-RTOS tread definition and tread  function declaration 
+// CMSIS-RTOS tread definition and tread  function declaration
 //
 //*****************************************************************************
 void communicationTread(void const *arg);
@@ -97,7 +105,7 @@ void dllInit(void)
 {
 	statePC = IDLE;
 	stateCC2530 = IDLE;
-	
+
 
 
 
@@ -109,7 +117,7 @@ void communicationTread(void const *arg)
 {
 	uint8_t port  = *(uint8_t *)(arg);
 	char tmp;
-	
+
 	if (PC == port)
 	{
 		eDLLState_t state = statePC;
@@ -130,7 +138,7 @@ void communicationTread(void const *arg)
 		CircularBuffer_t cTxBufferCC2530;
 		CircilarBuffer_t *cRxBuffer = &rxBufferCC2530;
 	}
-	
+
 	while (1)
 	{
 		switch (state)
@@ -143,7 +151,7 @@ void communicationTread(void const *arg)
 						rxIndex = 0;
 						state = RECEPTION;
 					}
-					else 
+					else
 					{
 						state = IDLE;
 					}
@@ -162,7 +170,7 @@ void communicationTread(void const *arg)
 						{
 							rxIndex = 0;
 						}
-						else 
+						else
 						{
 							rxBuffer[rxIndex++] = tmp;
 						}
@@ -179,7 +187,7 @@ void communicationTread(void const *arg)
 				{
 					proccessFrame(rxBuffer, rxIndex, updateCmd(recPack->data, recPack->devID));
 				}
-				
+
 				break;
 			// case EMISSION_START:
 				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
@@ -203,9 +211,9 @@ void communicationTread(void const *arg)
 				// }
 				// break;
 			// case EMISSION:
-				
+
 				// break;
-				
+
 			default:
 				// error state!!!
 				break;
@@ -227,10 +235,11 @@ static uint8_t getSignalID(const uint16_t deviceAddress);
 	return retVal;
 }
 
-static uint8_t proccessFrame(	uint8_t *frame, 
+static uint8_t proccessFrame(	uint8_t *frame,
 										uint8_t len,
-										void (*update)(uint32_t data, uint16_t devID)
-									)										
+										//void (*update)(uint32_t data, uint16_t devID)
+										call_back back
+									)
 {
 	uint8_t tmpCS = atoi(frame[len - CHECK_SUM_OFFSET]);
 	if (checksum(frame, tmpCs))
@@ -256,15 +265,13 @@ static uint8_t proccessFrame(	uint8_t *frame,
 		recPack->data = i3 & 0xffffffff;
 		recPack->timeStamp = i4 & 0xff;
 		recPack->checkSum = i5 & 0xff;
-		update(data, devID);
+		back(recPack->data, recPack->devID);
 		}
 	}
 
-static uint8_t checksum(uint8_t *frame, 
-												uint8_t len, 
+static uint8_t checksum(uint8_t *frame,
+												uint8_t len,
 												uint8_t cs);
 {
-	
+
 }
-
-
