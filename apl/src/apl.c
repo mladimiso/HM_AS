@@ -11,7 +11,7 @@
 // treba promijeniti naziv ova dva bafera u circularBuffer.h
 //
 //*****************************************************************************
-DLLPacket_t* app_packet;
+
 
 
 //*****************************************************************************
@@ -19,7 +19,7 @@ DLLPacket_t* app_packet;
 // Local variables
 //
 //*****************************************************************************
-
+Data_t *app_packet;
 
 
 //*****************************************************************************
@@ -33,6 +33,7 @@ void aplInit(void)
   halGPIOInit();
   halUARTInit();
   dllInit();
+	CallBackRegister(updateData);
 
 }
 
@@ -46,8 +47,9 @@ void aplSendData(uint32_t data, uint16_t devID, uin8_t port)
 
 
 
-void updateData(uint32_t data, uint16_t devID)
+void updateData(Data_t *pData)
 {
+ 
   int i = 0;
   while(appData[i].devID != 0 && appData[i].devID != devID && i<20)
   {
@@ -60,19 +62,6 @@ void updateData(uint32_t data, uint16_t devID)
   appData[i].data = data;
 }
 
-void updateCmd(uint32_t data, uint16_t devID)
-{
-  int i = 0;
-  while(appData[i].devID != 0 && appData[i].devID != devID && i<20)
-  {
-    i++;
-  }
-  if(appData[i].devID != devID)
-  {
-      appData[i].devID = devID;
-  }
-  appData[i].cmd = data;
-}
 uint32_t getData(uint16_t devID)
 {
   int i = 0;

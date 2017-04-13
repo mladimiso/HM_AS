@@ -9,8 +9,7 @@
 // stop of each field of received data
 //
 //*****************************************************************************
-//typedef void (*call_back) (S32, S32);
-typedef void (*call_back)(uint32_t, uint16_t);
+
 
 
 #define START_DELIMITER													0x3e // '>'
@@ -46,23 +45,25 @@ typedef enum eDLLState
 	EMISSION
 } eDLLState_t;
 
+
+
+uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
+uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
+
 //*****************************************************************************
 //
 // Internal/local functions
 // \just defining functionality/
 //
 //*****************************************************************************
-call_back back;
-back = updateData;
-
 static uint8_t getSignalID(const uint16_t devicesAddress);
-static uint8_t checksum(uint8_t *frame,
-												uint8_t len,
-												uint8_t cs);
-static uint8_t proccessFrame(uint8_t *frame,
-															uint8_t len,
-																	//void (*update)(uint32_t data, uint16_t devID));
-																	call_back back);
+static uint8_t checksum(DLLPacket_t *frame,
+												uint8_t cs
+												);
+static uint8_t proccessFrameRx(uint8_t *frame,
+															 uint8_t len,
+															 );
+static uint8_t devAddressSupport(uint16_t devAddress);
 
 static void checkdevID(void);
 
@@ -95,6 +96,7 @@ CircularBuffer_t rxBufferCC2530;
 eDLLState_t statePC;
 eDLLState_t stateCC2530;
 DLLPacket_t *recPack;
+CallBack_t callBack;
 
 //*****************************************************************************
 //
@@ -112,6 +114,10 @@ void dllInit(void)
 
 }
 
+void CallBackRegister(CallBack_t cb)
+{
+	callBack = cb;
+}
 
 void communicationTread(void const *arg)
 {
@@ -122,7 +128,6 @@ void communicationTread(void const *arg)
 	{
 		eDLLState_t state = statePC;
 		uint8_t uiRxBufferPC[MAX_BUFFER_LENGHT];
-		uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
 		uint8_t rxBufferPCIndex = 0;
 		uint8_t txBufferPCIndex = 0;
 		CircilarBuffer_t cTxBufferPC;
@@ -132,7 +137,6 @@ void communicationTread(void const *arg)
 	{
 		eDLLState_t state = stateCC2530;
 		uint8_t uiRxBufferCC2530[MAX_BUFFER_LENGHT];
-		uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
 		uint8_t rxBufferCC2530Index;
 		uint8_t txBufferCC2530Index;
 		CircularBuffer_t cTxBufferCC2530;
@@ -176,18 +180,8 @@ void communicationTread(void const *arg)
 						}
 					}
 				} while(STOP_DELIMITER == tmp);
-				state = IDLE;				//
-				// process frame on the proper way!
-				//
-				if(port == CC2530)
-				{
-					proccessFrame(rxBuffer, rxIndex, updateData(recPack->data, recPack->devID));
-				}
-				else if(port == PC)
-				{
-					proccessFrame(rxBuffer, rxIndex, updateCmd(recPack->data, recPack->devID));
-				}
-
+				state = IDLE;				
+				proccessFrame(rxBuffer, rxIndex);
 				break;
 			// case EMISSION_START:
 				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
@@ -236,14 +230,10 @@ static uint8_t getSignalID(const uint16_t deviceAddress);
 }
 
 static uint8_t proccessFrame(	uint8_t *frame,
-										uint8_t len,
-										//void (*update)(uint32_t data, uint16_t devID)
-										call_back back
-									)
+															uint8_t len,
+															)
 {
-	uint8_t tmpCS = atoi(frame[len - CHECK_SUM_OFFSET]);
-	if (checksum(frame, tmpCs))
-	{
+		// ovaj dio se mora malo dotjerati!!!
 		int i1;
 		int i2;
 		int i3;
@@ -265,13 +255,47 @@ static uint8_t proccessFrame(	uint8_t *frame,
 		recPack->data = i3 & 0xffffffff;
 		recPack->timeStamp = i4 & 0xff;
 		recPack->checkSum = i5 & 0xff;
-		back(recPack->data, recPack->devID);
+		
+		if (checksum(recPack, tmpCs))
+		{
+			if (devAddressSupport(recPack->devID))
+			{
+				callBack((struct sData *)(recPack));
+			}
+		}
+		else
+		{
+			error_checkSum();
+			recPack = NULL;
 		}
 	}
 
-static uint8_t checksum(uint8_t *frame,
-												uint8_t len,
+static uint8_t checksum(DLLPacket_t *frame,  
 												uint8_t cs);
 {
+	uint8_t sum  = 0x00;
+	uint8_t *ptr = (uint8_t *)(frame);
+	uint8_t *end = &frame->checkSum;
+	while(ptr != end)
+	{
+		sum ^= *ptr;
+		ptr++;
+	}
+	
+	return (sum == cs);
+	
+}
 
+static uint8_t devAddressSupport(uint16_t devAddress)
+{
+	return( (devAddress == TEMP_SENSOR_INSIDE) || 
+					(devAddress == TEMP_SENSOR_OUTSIDE) || 
+					(devAddress == PRESSURE_SENSOR_INSIDE) ||
+ 					(devAddress == PRESSURE_SENSOR_OUTSIDE) ||
+					(devAddress == HUMIDITY_SENSOR_INSIDE) ||
+					(devAddress == HUMIDITY_SENSOR_OUTSIDE) ||
+					(devAddress == DOOR) ||
+					(devAddress == WINDOW) ||
+					(devAddress == MOTION_SENSOR)
+					);
 }
