@@ -3,6 +3,8 @@
 #include "hal/includes/hal_uart.h"
 #include "common/includes/circular_buffer.h"
 
+#include "cmsis_os.h"
+
 //*****************************************************************************
 //
 // Values that determines start and stop of each frame as well as start and
@@ -16,7 +18,7 @@
 #define STOP_DELIMITER													0x0a // '\n'
 #define START_FIELD															0x23 // '#'
 #define STOP_FIELD															0x2c // ','
-#define EMISSION_DEMAND													1
+#define EMISSION_START												1
 
 #define MAX_BUFFER_LENGHT												256
 #define CHECK_SUM_OFFSET												2
@@ -41,13 +43,9 @@ typedef enum eDLLState
 {
 	IDLE,
 	RECEPTION,
-	EMISSION_START,
 	EMISSION
-} eDLLState_t;
+} DLLState_t;
 
-
-uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
-uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
 //*****************************************************************************
 //
 // Internal/local functions
@@ -55,18 +53,16 @@ uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
 //
 //*****************************************************************************
 static uint8_t getSignalID(const uint16_t devicesAddress);
-static uint8_t checksum(DLLPacket_t *frame,
-												uint8_t cs
-												);
+static uint8_t checksum(DLLPacket_t *frame);
 /*static uint8_t proccessFrame(CircularBuffer_t *frame,
 															uint8_t len,
 																	//void (*update)(uint32_t data, uint16_t devID));
 																	call_back back);*/
-static uint8_t proccessFrameRx(CircularBuffer_t *frame,
+static uint8_t proccessFrameRx(uint8_t *frame,
 															 uint8_t len
 															 );
 static uint8_t devAddressSupport(uint16_t devAddress);
-static void checkdevID(void);
+
 
 
 
@@ -75,14 +71,15 @@ static void checkdevID(void);
 // CMSIS-RTOS tread definition and tread  function declaration
 //
 //*****************************************************************************
-void communicationTread(void const *arg);
-
+void communicationThread(void const *arg);
+osThreadId t_ID_PC_Communication;
+osThreadId t_ID_CC2530_Communication;
 
 
 //*****************************************************************************
 //
 // Extern variables
-//
+// 
 // treba promijeniti naziv ova dva bafera u circularBuffer.h
 //
 //*****************************************************************************
@@ -94,9 +91,31 @@ CircularBuffer_t rxBufferCC2530;
 // Local variables
 //
 //*****************************************************************************
-eDLLState_t statePC;
-eDLLState_t stateCC2530;
+DLLState_t statePC;
+DLLState_t stateCC2530;
+uint8_t emFlagPC;
+uint8_t emFlagCC2530;
+
+char uiTxBufferPC[MAX_BUFFER_LENGHT];
+uint8_t uiRxBufferPC[MAX_BUFFER_LENGHT];
+
+char uiTxBufferCC2530[MAX_BUFFER_LENGHT];
+uint8_t uiRxBufferCC2530[MAX_BUFFER_LENGHT];
+
+uint8_t rxBufferPCIndex;
+uint8_t txBufferPCIndex;
+
+uint8_t rxBufferCC2530Index;
+uint8_t txBufferCC2530Index;
+
+uint8_t tmpPC;
+uint8_t tmpCC2530;
+
+CircularBuffer_t cTxBufferPC;
+CircularBuffer_t cTxBufferCC2530;
+
 DLLPacket_t *recPack;
+
 CallBack_t callBack;
 
 //*****************************************************************************
@@ -106,51 +125,74 @@ CallBack_t callBack;
 //*****************************************************************************
 void dllInit(void)
 {
+	osThreadDef(communicationThread,
+							osPriorityHigh,
+							2,
+							0
+							);
+	
+	uint8_t tmpPC = PC;
+	uint8_t tmpCC = CC2530;
 	statePC = IDLE;
 	stateCC2530 = IDLE;
+	rxBufferPCIndex = 0;
+	txBufferPCIndex = 0;
+	rxBufferCC2530Index = 0;
+	txBufferCC2530Index = 0;
+	
+	circularInit(&cTxBufferPC);
+	circularInit(&cTxBufferCC2530);
+	
+	halUARTOpenPort(PC, BAUDRATE_PC , 1, 0);
+	halUARTOpenPort(CC2530, BAUDRATE_CC2530, 1, 0);
 
 
-
-
-
+							
+	t_ID_PC_Communication = osThreadCreate( osThread(communicationThread),
+																					(void *)(&tmpPC)
+																					);
+	t_ID_CC2530_Communication = osThreadCreate( osThread(communicationThread),
+																					(void *)(&tmpCC)
+																					);
 }
 
 
-void communicationTread(void const *arg)
+void communicationThread(void const *arg)
 {
 	uint8_t port  = *(uint8_t *)(arg);
-	//char tmp;
 	uint8_t tmp;
+	uint8_t *rxBuffer;
+  uint8_t *txBuffer;
+	uint8_t txIndex;
 	uint8_t rxIndex;
-	eDLLState_t state;
+	uint8_t emFlag;
+	DLLState_t state;
 	CircularBuffer_t *cRxBuffer;
+	CircularBuffer_t *cTxBuffer;
+	
 	if (PC == port)
 	{
-
-		uint8_t uiRxBufferPC[MAX_BUFFER_LENGHT];
-		uint8_t uiTxBufferPC[MAX_BUFFER_LENGHT];
-		CircularBuffer_t cTxBufferPC;
-
-		uint8_t rxBufferPCIndex = 0;
-
-		uint8_t txBufferPCIndex = 0;
+		tmp = tmpPC;
 		state = statePC;
+		txBuffer = (uint8_t *)uiTxBufferPC;
+		rxBuffer = uiRxBufferPC;
+		txIndex = txBufferPCIndex;
 		rxIndex = rxBufferPCIndex;
+		emFlag = emFlagPC;
 		cRxBuffer = &rxBufferPC;
+		cTxBuffer = &cTxBufferPC;
 	}
 	else if (CC2530 == port)
 	{
-
-		uint8_t uiRxBufferCC2530[MAX_BUFFER_LENGHT];
-		uint8_t uiTxBufferCC2530[MAX_BUFFER_LENGHT];
-		CircularBuffer_t cTxBufferCC2530;
-
-		uint8_t rxBufferCC2530Index = 0;
-
-		uint8_t txBufferCC2530Index = 0;
+  	tmp = tmpCC2530; 
 		state = stateCC2530;
+		txBuffer = (uint8_t *)uiTxBufferCC2530;
+		rxBuffer = uiRxBufferCC2530;
+		txIndex = txBufferCC2530Index;
 		rxIndex = rxBufferCC2530Index;
+		emFlag = emFlagCC2530;
 		cRxBuffer = &rxBufferCC2530;
+		cTxBuffer = &cTxBufferCC2530;
 	}
 
 	while (1)
@@ -170,6 +212,11 @@ void communicationTread(void const *arg)
 						state = IDLE;
 					}
 				}
+				else if (EMISSION_START == emFlag)
+				{
+					state = EMISSION;
+				}
+				
 				else
 				{
 					state = IDLE;
@@ -186,25 +233,16 @@ void communicationTread(void const *arg)
 						}
 						else
 						{
-							cRxBuffer->buffer[rxIndex++] = tmp;
+							rxBuffer[rxIndex++] = tmp;
 						}
 					}
-				} while(STOP_DELIMITER == tmp);
+				} while(STOP_DELIMITER != tmp);
 				state = IDLE;				//
-				proccessFrameRx(cRxBuffer, rxIndex);
-				// process frame on the proper way!
-				//
-			/*	if(port == CC2530)
-				{
-					proccessFrame(cRxBuffer, rxIndex, updateData(recPack->data, recPack->devID));
-				}
-				else if(port == PC)
-				{
-					proccessFrame(cRxBuffer, rxIndex, updateCmd(recPack->data, recPack->devID));
-				}*/
+				proccessFrameRx(rxBuffer, rxIndex);
+		
 
 				break;
-			// case EMISSION_START:
+			 
 				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
 				// do
 				// {
@@ -224,11 +262,14 @@ void communicationTread(void const *arg)
 				// {
 					// state = EMISSION;
 				// }
-				// break;
-			// case EMISSION:
-
-				// break;
-
+			
+			case EMISSION:
+				circularEmptyBuffer(cTxBuffer);
+				array2circular(cTxBuffer, txBuffer, txIndex);
+				halUARTWrite(port, cTxBuffer, 0);
+				txIndex = 0;
+				state = IDLE;
+			break;
 			default:
 				// error state!!!
 				break;
@@ -250,39 +291,34 @@ static uint8_t getSignalID(const uint16_t deviceAddress)
 	return retVal;
 }
 
-static uint8_t proccessFrameRx(	CircularBuffer_t *frame,
-										uint8_t len
-										//void (*update)(uint32_t data, uint16_t devID)
-
-									)
+uint8_t proccessFrameRx(uint8_t *frame,
+																uint8_t len
+																)
 {
-	uint8_t tmpCS = atoi((char *)frame->buffer[len - CHECK_SUM_OFFSET]);
-	/*if (checksum(frame, len, tmpCS))
-	{*/
-		int i1;
-		int i2;
-		int i3;
-		int i4;
-		int i5;
-		sscanf((char *)frame,
+	int iSignalID;
+	int iData;
+	int iPackNum;
+	int iTimeStamp;
+	int iCheckSum;
+	sscanf((char *)frame,
 					"%*[^0123456789]%d\
 					 %*[^0123456789]%d\
 					 %*[^0123456789]%d\
 					 %*[^0123456789]%d\
 					 %*[^0123456789]%d",
-					 &i1,
-					 &i2,
-					 &i3,
-					 &i4,
-					 &i5);
-		recPack->appData.devID = signalID[i1];
-		recPack->packNum = i2 & 0xff;
-		recPack->appData.data = i3 & 0xffffffff;
-		recPack->timeStamp = i4 & 0xff;
-		recPack->checkSum = i5 & 0xff;
-		//back(recPack->data, recPack->devID);
-		//}
-		if (checksum(recPack, tmpCS))
+					 &iSignalID,
+					 &iPackNum,
+					 &iData,
+					 &iTimeStamp,
+					 &iCheckSum
+					 );
+		recPack->appData.devID = signalID[iSignalID];
+		recPack->appData.packNum = iPackNum & 0xff;
+		recPack->appData.data = iData & 0xffffffff;
+		recPack->timeStamp = iTimeStamp & 0xff;
+		recPack->checkSum = iCheckSum & 0xff;
+		
+		if (checksum(recPack) == recPack->checkSum)
 		{
 			if (devAddressSupport(recPack->appData.devID))
 			{
@@ -300,8 +336,7 @@ static uint8_t proccessFrameRx(	CircularBuffer_t *frame,
 
 }
 
-static uint8_t checksum(DLLPacket_t *frame,
-												uint8_t cs)
+uint8_t checksum(DLLPacket_t *frame)
 {
 	uint8_t sum  = 0x00;
 	uint8_t *ptr = (uint8_t *)(frame);
@@ -312,7 +347,7 @@ static uint8_t checksum(DLLPacket_t *frame,
 		ptr++;
 	}
 
-	return (sum == cs);
+	return sum;
 
 }
 
@@ -334,7 +369,52 @@ void CallBackRegister(CallBack_t cb)
 {
 	callBack = cb;
 }
-void dllDataRequest(Data_t *appData, uint8_t port)
+void dllDataRequest(Data_t *aData, uint8_t port)
 {
-
+	DLLPacket_t emPacket;
+	emPacket.appData = *aData;
+	
+	// ako bude bilo potrebe za slanjem vremenskog trenutka
+	// radi iscrtavanja grafa obezbjedicemo mehanizam, inace 
+	// timeStamp = 0
+	emPacket.timeStamp = 0;
+	emPacket.checkSum = checksum(&emPacket);
+	
+	if (PC == port)
+	{
+		txBufferPCIndex = sprintf(uiTxBufferPC,
+															">#%d,\
+																#%d,\
+																#%d,\
+																#%d,\
+																#%d",
+															getSignalID(emPacket.appData.devID),
+															emPacket.appData.packNum,
+															emPacket.appData.data,
+															emPacket.timeStamp,
+															emPacket.checkSum
+															);
+		emFlagPC = EMISSION_START;
+	}
+	else if (CC2530 == port)
+	{
+		txBufferCC2530Index = sprintf(uiTxBufferCC2530,
+																	">#%d,\
+																		#%d,\
+																		#%d,\
+																		#%d,\
+																		#%d",
+																	getSignalID(emPacket.appData.devID),
+																	emPacket.appData.packNum,
+																	emPacket.appData.data,
+																	emPacket.timeStamp,
+																	emPacket.checkSum
+																	);
+	  emFlagCC2530 = EMISSION_START;
+	}
+	else 
+	{
+		//error!!!
+	}
+	
 }

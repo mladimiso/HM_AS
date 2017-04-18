@@ -92,7 +92,7 @@ uint8_t circularGet(CircularBuffer_t *buff,
 // Function that clears a CB
 //
 //*****************************************************************************
-void circularEmptyBuff(CircularBuffer_t *buff)
+void circularEmptyBuffer(CircularBuffer_t *buff)
 {
 	circularInit(buff);
 }
@@ -112,5 +112,38 @@ uint8_t circularSize(CircularBuffer_t *buff)
 		tmp++;
 	}
 	return cnt;	
+}
+
+int circular2array(CircularBuffer_t *c_buff, 
+									 uint8_t *uc_array)
+{	
+	unsigned char *tmp = c_buff->head;
+	int i = 0;
+	while(tmp != c_buff->tail)
+	{
+		*(uc_array + i) = *(tmp);
+		tmp++;
+		i++;
+	}
+	return circularSize(c_buff);
+}
+
+uint8_t array2circular(CircularBuffer_t *c_buff, 
+									 uint8_t *uc_array, 
+									 uint8_t size)
+{
+	int i;
+	if (circularIsEmpty(c_buff) && size < CAPACITY)
+	{
+		for (i = 0; i < size; i++)
+		{
+			circularPut(c_buff, *(uc_array + i));
+		}
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
 }
 	

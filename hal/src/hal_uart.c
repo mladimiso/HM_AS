@@ -4,9 +4,9 @@
 #include "hal\includes\hal_uart.h"
 
 
-extern osThreadId uartISR;
+
 static uint8_t isrCounter;
-static uint8_t isr1Counter;
+//static uint8_t isr1Counter;
 
 //#if (defined HAL_TIMER) && (HAL_TIMER == TRUE)
 //*****************************************************************************
@@ -55,15 +55,12 @@ void halUARTInit(void)
 		UARTIntEnable(UART0_BASE, UART_INT_RX );
 
 		IntEnable(INT_UART0);
-		#ifdef __CMSIS_RTOS__
-			//isrSemaphore = osSemaphoreCreate(osSemaphore(isrSemaphore), 
-				//															 1
-				//			);
-			initIsrCounter();
-			
-		#else
-				circularInit(&rxBuffer0);
-		#endif
+		
+	#ifdef __CMSIS_RTOS__
+			circularInit(&rxBufferPC);
+	#else
+			circularInit(&rxBuffer0);
+	#endif
 	
 	#endif
 #endif
@@ -90,14 +87,10 @@ void halUARTInit(void)
 		IntEnable(INT_UART1);
 	
 	#ifdef __CMSIS_RTOS__
-			//isrSemaphore = osSemaphoreCreate(osSemaphore(isrSemaphore), 
-				//															 1
-				//			);
-			initIsrCounter();
-			
-		#else
-				circularInit(&rxBuffer0);
-		#endif
+			circularInit(&rxBufferCC2530);
+	#else
+		  circularInit(&rxBuffer1);
+	#endif
 	
 	#endif
 #endif

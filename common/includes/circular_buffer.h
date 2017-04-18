@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define CAPACITY 128
+#define CAPACITY 256
 
 typedef struct circularBuffer 
 {
@@ -26,5 +26,11 @@ uint8_t circularGet(CircularBuffer_t * ,
 
 void circularEmptyBuffer(CircularBuffer_t * );
 void circularDump(CircularBuffer_t * );
+
+int circular2array(CircularBuffer_t * , 
+									uint8_t * );
+uint8_t array2circular(CircularBuffer_t *c_buff, 
+									 uint8_t *uc_array, 
+									 uint8_t size);
 
 #endif //__CIRCULAR_BUFFER__

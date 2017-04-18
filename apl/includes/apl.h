@@ -23,7 +23,7 @@ typedef struct sAPLData_t
 
 //uint32_t aplData;
 //uint8_t devID;
-extern APLData_t DataID[20];
+//extern APLData_t DataID[20];
 //APLData_t DataID[20];
 //*****************************************************************************
 //
