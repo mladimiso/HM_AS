@@ -10,15 +10,19 @@
 // Global variables
 //
 //*****************************************************************************
+#pragma pack(push)
+#pragma pack(1)
 typedef struct sAPLData_t
 {
 	uint16_t devID;
   //uint16_t devAddress;
 	//uint8_t exist = 0;
+	uint8_t packNum;
 	uint32_t data;
+	
 	//uint32_t cmd;
 } APLData_t;
-
+#pragma pack(pop)
 
 
 //uint32_t aplData;
@@ -34,7 +38,7 @@ typedef struct sAPLData_t
 void aplInit(void);
 void aplSendData(uint32_t data, uint16_t devID, uint8_t port);
 void aplProcessCommand(void);
-void updateData(Data_t *pData);
+void updateData(Data_t *pData, uint8_t port);
 
 uint32_t getData(uint16_t devID);
 

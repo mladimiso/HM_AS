@@ -9,15 +9,15 @@
 // Defining devices address
 //
 //*****************************************************************************
-#define TEMP_SENSOR_INSIDE														0x0000
-#define TEMP_SENSOR_OUTSIDE														0x0000
-#define PRESSURE_SENSOR_INSIDE												0x0000
-#define PRESSURE_SENSOR_OUTSIDE												0x0000
-#define HUMIDITY_SENSOR_INSIDE												0x0000
-#define HUMIDITY_SENSOR_OUTSIDE												0x0000
-#define DOOR																					0x0000
-#define WINDOW																				0x0000
-#define MOTION_SENSOR																	0x0000
+#define TEMP_SENSOR_INSIDE														0x1111
+#define TEMP_SENSOR_OUTSIDE														0x1112
+#define PRESSURE_SENSOR_INSIDE												0x1113
+#define PRESSURE_SENSOR_OUTSIDE												0x1114
+#define HUMIDITY_SENSOR_INSIDE												0x1115
+#define HUMIDITY_SENSOR_OUTSIDE												0x1116
+#define DOOR																					0x1117
+#define WINDOW																				0x1118
+#define MOTION_SENSOR																	0x1119
 
 
 #pragma pack(push)
@@ -48,7 +48,7 @@ typedef struct sDLLPacket_t
 #pragma pack(pop)
 
 
-typedef void (*CallBack_t)(Data_t *);
+typedef void (*CallBack_t)(Data_t *, uint8_t);
 
 void dllInit(void);
 void CallBackRegister(CallBack_t cb);

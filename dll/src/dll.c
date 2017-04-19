@@ -15,7 +15,7 @@
 
 
 #define START_DELIMITER													0x3e // '>'
-#define STOP_DELIMITER													0x0a // '\n'
+#define STOP_DELIMITER													0x3e			//0x0a // '\n'
 #define START_FIELD															0x23 // '#'
 #define STOP_FIELD															0x2c // ','
 #define EMISSION_START												1
@@ -27,7 +27,7 @@
 // A mapping of devices address to signal_id number.
 //
 //*****************************************************************************
-static const uint8_t signalID[] = {
+static const uint16_t signalID[] = {
 									TEMP_SENSOR_INSIDE,
 									TEMP_SENSOR_OUTSIDE,
 									PRESSURE_SENSOR_INSIDE,
@@ -54,12 +54,9 @@ typedef enum eDLLState
 //*****************************************************************************
 static uint8_t getSignalID(const uint16_t devicesAddress);
 static uint8_t checksum(DLLPacket_t *frame);
-/*static uint8_t proccessFrame(CircularBuffer_t *frame,
-															uint8_t len,
-																	//void (*update)(uint32_t data, uint16_t devID));
-																	call_back back);*/
 static uint8_t proccessFrameRx(uint8_t *frame,
-															 uint8_t len
+															 uint8_t len,
+															 uint8_t port
 															 );
 static uint8_t devAddressSupport(uint16_t devAddress);
 
@@ -72,8 +69,8 @@ static uint8_t devAddressSupport(uint16_t devAddress);
 //
 //*****************************************************************************
 void communicationThread(void const *arg);
-osThreadId t_ID_PC_Communication;
-osThreadId t_ID_CC2530_Communication;
+osThreadId tID_PC_Communication;
+osThreadId tID_CC2530_Communication;
 
 
 //*****************************************************************************
@@ -116,7 +113,7 @@ CircularBuffer_t cTxBufferCC2530;
 
 DLLPacket_t *recPack;
 
-CallBack_t callBack;
+static CallBack_t callBack;
 
 //*****************************************************************************
 //
@@ -131,8 +128,9 @@ void dllInit(void)
 							0
 							);
 	
-	uint8_t tmpPC = PC;
-	uint8_t tmpCC = CC2530;
+	uint8_t portPC = PC;
+	uint8_t portCC2530 = CC2530;
+	
 	statePC = IDLE;
 	stateCC2530 = IDLE;
 	rxBufferPCIndex = 0;
@@ -148,97 +146,104 @@ void dllInit(void)
 
 
 							
-	t_ID_PC_Communication = osThreadCreate( osThread(communicationThread),
-																					(void *)(&tmpPC)
+	tID_PC_Communication = osThreadCreate( osThread(communicationThread),
+																					(void *)(&portPC)
 																					);
-	t_ID_CC2530_Communication = osThreadCreate( osThread(communicationThread),
-																					(void *)(&tmpCC)
+	tID_CC2530_Communication = osThreadCreate( osThread(communicationThread),
+																					(void *)(&portCC2530)
 																					);
 }
 
+void CallBackRegister(CallBack_t cb)
+{
+	callBack = cb;
+}
 
 void communicationThread(void const *arg)
 {
 	uint8_t port  = *(uint8_t *)(arg);
-	uint8_t tmp;
+	uint8_t *tmp;
 	uint8_t *rxBuffer;
   uint8_t *txBuffer;
-	uint8_t txIndex;
-	uint8_t rxIndex;
-	uint8_t emFlag;
-	DLLState_t state;
+	uint8_t *txIndex;
+	uint8_t *rxIndex;
+	uint8_t *emFlag;
+	DLLState_t *state;
 	CircularBuffer_t *cRxBuffer;
 	CircularBuffer_t *cTxBuffer;
 	
 	if (PC == port)
 	{
-		tmp = tmpPC;
-		state = statePC;
+		tmp = &tmpPC;
+		state = &statePC;
 		txBuffer = (uint8_t *)uiTxBufferPC;
 		rxBuffer = uiRxBufferPC;
-		txIndex = txBufferPCIndex;
-		rxIndex = rxBufferPCIndex;
-		emFlag = emFlagPC;
+		txIndex = &txBufferPCIndex;
+		rxIndex = &rxBufferPCIndex;
+		emFlag = &emFlagPC;
 		cRxBuffer = &rxBufferPC;
 		cTxBuffer = &cTxBufferPC;
 	}
 	else if (CC2530 == port)
 	{
-  	tmp = tmpCC2530; 
-		state = stateCC2530;
+  	tmp = &tmpCC2530; 
+		state = &stateCC2530;
 		txBuffer = (uint8_t *)uiTxBufferCC2530;
 		rxBuffer = uiRxBufferCC2530;
-		txIndex = txBufferCC2530Index;
-		rxIndex = rxBufferCC2530Index;
-		emFlag = emFlagCC2530;
+		txIndex = &txBufferCC2530Index;
+		rxIndex = &rxBufferCC2530Index;
+		emFlag = &emFlagCC2530;
 		cRxBuffer = &rxBufferCC2530;
 		cTxBuffer = &cTxBufferCC2530;
 	}
 
 	while (1)
 	{
-		switch (state)
+		osDelay(2);
+		switch ((*state))
 		{
 			case IDLE:
-				if (circularGet(cRxBuffer, &tmp))	//zastita!!!
+				if (circularGet(cRxBuffer, tmp))	//zastita!!!
 				{
-					if (START_DELIMITER == tmp)
+					if (START_DELIMITER == (*tmp))
 					{
-						rxIndex = 0;
-						state = RECEPTION;
+						*rxIndex = 0;
+						*state = RECEPTION;
 					}
 					else
 					{
-						state = IDLE;
+						*state = IDLE;
+						
 					}
 				}
-				else if (EMISSION_START == emFlag)
+				else if (EMISSION_START == (*emFlag))
 				{
-					state = EMISSION;
+					*state = EMISSION;
 				}
 				
 				else
 				{
-					state = IDLE;
+					*state = IDLE;
+					
 				}
 				break;
 			case RECEPTION:
 				do
 				{
-					if (circularGet(cRxBuffer, &tmp)) // zastita!!!
+					if (circularGet(cRxBuffer, tmp)) // zastita!!!
 					{
-						if (START_DELIMITER == tmp)
+						if (START_DELIMITER == (*tmp))
 						{
-							rxIndex = 0;
+							*rxIndex = 0;
 						}
 						else
 						{
-							rxBuffer[rxIndex++] = tmp;
+							rxBuffer[(*rxIndex)++] = *tmp;
 						}
 					}
-				} while(STOP_DELIMITER != tmp);
-				state = IDLE;				//
-				proccessFrameRx(rxBuffer, rxIndex);
+				} while(STOP_DELIMITER != *tmp);
+				*state = IDLE;				//
+				proccessFrameRx(rxBuffer, *rxIndex, port);
 		
 
 				break;
@@ -265,10 +270,10 @@ void communicationThread(void const *arg)
 			
 			case EMISSION:
 				circularEmptyBuffer(cTxBuffer);
-				array2circular(cTxBuffer, txBuffer, txIndex);
+				array2circular(cTxBuffer, txBuffer, *txIndex);
 				halUARTWrite(port, cTxBuffer, 0);
-				txIndex = 0;
-				state = IDLE;
+				*txIndex = 0;
+				*state = IDLE;
 			break;
 			default:
 				// error state!!!
@@ -292,9 +297,11 @@ static uint8_t getSignalID(const uint16_t deviceAddress)
 }
 
 uint8_t proccessFrameRx(uint8_t *frame,
-																uint8_t len
-																)
+												uint8_t len,
+												uint8_t port
+												)
 {
+	Data_t *cbData;
 	int iSignalID;
 	int iData;
 	int iPackNum;
@@ -317,22 +324,22 @@ uint8_t proccessFrameRx(uint8_t *frame,
 		recPack->appData.data = iData & 0xffffffff;
 		recPack->timeStamp = iTimeStamp & 0xff;
 		recPack->checkSum = iCheckSum & 0xff;
-		
-		if (checksum(recPack) == recPack->checkSum)
-		{
-			if (devAddressSupport(recPack->appData.devID))
-			{
-				callBack((struct sData *)(recPack));
-
-			}
+		cbData = (struct sData *)(recPack);
+//		if (checksum(recPack) == recPack->checkSum)
+//		{
+//			if (devAddressSupport(recPack->appData.devID))
+//			{
+				//callBack((struct sData *)(recPack), port);
+callBack(cbData, port);
+//			}
 			return 0;
-		}
-		else
-		{
-			//error_checkSum();
-			recPack = NULL;
-			return 1;
-		}
+//		}
+//	//	else
+//		{
+//			//error_checkSum();
+//			recPack = NULL;
+//			return 1;
+//		}
 
 }
 
@@ -365,10 +372,7 @@ static uint8_t devAddressSupport(uint16_t devAddress)
 					);
 }
 
-void CallBackRegister(CallBack_t cb)
-{
-	callBack = cb;
-}
+
 void dllDataRequest(Data_t *aData, uint8_t port)
 {
 	DLLPacket_t emPacket;
@@ -383,11 +387,7 @@ void dllDataRequest(Data_t *aData, uint8_t port)
 	if (PC == port)
 	{
 		txBufferPCIndex = sprintf(uiTxBufferPC,
-															">#%d,\
-																#%d,\
-																#%d,\
-																#%d,\
-																#%d",
+															">#%d,#%d,#%d,#%d,#%d",
 															getSignalID(emPacket.appData.devID),
 															emPacket.appData.packNum,
 															emPacket.appData.data,
@@ -399,11 +399,7 @@ void dllDataRequest(Data_t *aData, uint8_t port)
 	else if (CC2530 == port)
 	{
 		txBufferCC2530Index = sprintf(uiTxBufferCC2530,
-																	">#%d,\
-																		#%d,\
-																		#%d,\
-																		#%d,\
-																		#%d",
+																	">#%d,#%d,#%d,#%d,#%d",
 																	getSignalID(emPacket.appData.devID),
 																	emPacket.appData.packNum,
 																	emPacket.appData.data,
