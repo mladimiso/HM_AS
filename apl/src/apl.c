@@ -4,8 +4,10 @@
 #include "hal/includes/hal_uart.h"
 #include "common/includes/includes.h"
 #include "common/includes/defines.h"
-//*****************************************************************************
-//
+
+
+
+
 // Extern variables
 //
 // treba promijeniti naziv ova dva bafera u circularBuffer.h
@@ -21,6 +23,7 @@ extern uint8_t dataReady;
 //*****************************************************************************
 Data_t *app_packet;
 static APLData_t DataID[20];
+//extern APLData_t DataID[20];
 
 //*****************************************************************************
 //
@@ -30,20 +33,7 @@ static APLData_t DataID[20];
 
 void aplInit(void)
 {
-  //halGPIOInit();
-  //halUARTInit();
- // dllInit();
-//	DataID
-//	int i;
 	CallBackRegister(updateData);
-	 
-//	for(i = 0; i<20; i++)
-//	{
-//		DataID[i].devID = 0;
-//		DataID[i].data = 0;
-//	}
-
-	
 }
 
 void aplSendData(uint32_t data, uint16_t devID, uint8_t port)
@@ -64,11 +54,18 @@ void updateData(Data_t *pData, uint8_t port)
   {
     i++;
   }
-  if(DataID[i].devID != pData->devID)
+  if(DataID[i].devID == 0);//!= pData->devID)
+	//if(DataID[i].devID == pData->devID)
   {
       DataID[i].devID = pData->devID;
+
   }
-  DataID[i].data = pData->data;
+	
+	if(i < 20)
+	{
+		DataID[i].data = pData->data;
+	}
+	
 	dataReady = 1;
 }
 
@@ -77,7 +74,8 @@ uint32_t getData(uint16_t devID)
 {
   int i = 0;
   uint32_t data = 1500;
-  while(DataID[i].devID != 0 && DataID[i].devID != devID && i < 20)
+  while(DataID[i].devID != devID && i < 20) //
+	//while(DataID[i].devID != 0 && DataID[i].devID != devID && i < 20)
   {
     i++;
   }

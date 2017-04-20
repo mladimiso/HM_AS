@@ -111,7 +111,7 @@ uint8_t tmpCC2530;
 CircularBuffer_t cTxBufferPC;
 CircularBuffer_t cTxBufferCC2530;
 
-DLLPacket_t *recPack;
+DLLPacket_t recPack;
 
 static CallBack_t callBack;
 
@@ -143,9 +143,7 @@ void dllInit(void)
 	
 	halUARTOpenPort(PC, BAUDRATE_PC , 1, 0);
 	halUARTOpenPort(CC2530, BAUDRATE_CC2530, 1, 0);
-
-
-							
+	
 	tID_PC_Communication = osThreadCreate( osThread(communicationThread),
 																					(void *)(&portPC)
 																					);
@@ -302,6 +300,7 @@ uint8_t proccessFrameRx(uint8_t *frame,
 												)
 {
 	Data_t *cbData;
+	//DLLPacket_t *tmpRrcPack = recPack;
 	int iSignalID;
 	int iData;
 	int iPackNum;
@@ -319,18 +318,22 @@ uint8_t proccessFrameRx(uint8_t *frame,
 					 &iTimeStamp,
 					 &iCheckSum
 					 );
-		recPack->appData.devID = signalID[iSignalID];
-		recPack->appData.packNum = iPackNum & 0xff;
-		recPack->appData.data = iData & 0xffffffff;
-		recPack->timeStamp = iTimeStamp & 0xff;
-		recPack->checkSum = iCheckSum & 0xff;
-		cbData = (struct sData *)(recPack);
+		recPack.appData.devID = signalID[iSignalID];
+		recPack.appData.packNum = (uint32_t)iPackNum & 0xff;
+		recPack.appData.data = (uint32_t)iData & 0xffffffff;
+		recPack.timeStamp = (uint32_t)iTimeStamp & 0xff;
+		recPack.checkSum = (uint32_t)iCheckSum & 0xff;
+		
+		cbData = (struct sData *)(&recPack);
+		
+
 //		if (checksum(recPack) == recPack->checkSum)
 //		{
 //			if (devAddressSupport(recPack->appData.devID))
 //			{
-				//callBack((struct sData *)(recPack), port);
-callBack(cbData, port);
+
+								callBack(cbData, port);
+
 //			}
 			return 0;
 //		}
