@@ -7,24 +7,7 @@
 
 //*****************************************************************************
 //
-// Values that determines start and stop of each frame as well as start and
-// stop of each field of received data
-//
-//*****************************************************************************
-
-
-
-#define START_DELIMITER													0x3e // '>'
-#define STOP_DELIMITER													0x3e			//0x0a // '\n'
-#define START_FIELD															0x23 // '#'
-#define STOP_FIELD															0x2c // ','
-#define EMISSION_START												1
-
-#define MAX_BUFFER_LENGHT												256
-#define CHECK_SUM_OFFSET												2
-//*****************************************************************************
-//
-// A mapping of devices address to signal_id number.
+// A mapping of devices IDs to signal_id number.
 //
 //*****************************************************************************
 static const uint16_t signalID[] = {
@@ -39,12 +22,8 @@ static const uint16_t signalID[] = {
 									MOTION_SENSOR
 									};
 
-typedef enum eDLLState
-{
-	IDLE,
-	RECEPTION,
-	EMISSION
-} DLLState_t;
+
+
 
 //*****************************************************************************
 //
@@ -54,7 +33,7 @@ typedef enum eDLLState
 //*****************************************************************************
 static uint8_t getSignalID(const uint16_t devicesAddress);
 static uint8_t checksum(DLLPacket_t *frame);
-static uint8_t proccessFrameRx(uint8_t *frame,
+static uint8_t processFrameRx(uint8_t *frame,
 															 uint8_t len,
 															 uint8_t port
 															 );
@@ -120,6 +99,19 @@ static CallBack_t callBack;
 // Function definition
 //
 //*****************************************************************************
+
+//*****************************************************************************
+//
+//! Data link layer initialization function
+//!
+//! This function initializes states and indexes,
+//! configures communication ports, one of \b PC or \b CC2530 and their
+//! baudrates, one of \b BAUDRATE_PC \b BAUDRATE_CC2530. Creates two threads
+//! for communication wia UART interface.
+//!
+//! \return None.
+//
+//*****************************************************************************
 void dllInit(void)
 {
 	osThreadDef(communicationThread,
@@ -152,11 +144,32 @@ void dllInit(void)
 																					);
 }
 
+//*****************************************************************************
+//
+//! Register callback function.
+//!
+//! \param cb is pointer on the function.
+//!
+//! \return None.
+//
+//*****************************************************************************
 void CallBackRegister(CallBack_t cb)
 {
 	callBack = cb;
 }
 
+//*****************************************************************************
+//
+//! Function handles comminucation. Handles RX or TX on active ports.
+//!
+//! \param arg is pointer on port.
+//!
+//! This function sends data from app layer forward and delivers data to app 
+//! layer.
+//!
+//! \return None.
+//
+//*****************************************************************************
 void communicationThread(void const *arg)
 {
 	uint8_t port  = *(uint8_t *)(arg);
@@ -197,7 +210,7 @@ void communicationThread(void const *arg)
 
 	while (1)
 	{
-		osDelay(2);
+		osDelay(10);
 		switch ((*state))
 		{
 			case IDLE:
@@ -241,33 +254,9 @@ void communicationThread(void const *arg)
 					}
 				} while(STOP_DELIMITER != *tmp);
 				*state = IDLE;				//
-				proccessFrameRx(rxBuffer, *rxIndex, port);
-		
-
-				break;
-			 
-				// // kako konvertovati u karaktere kojim punimo cirkularni bufer
-				// do
-				// {
-					// if(START_DELIMITER == tmp)
-					// {
-						// txIndex = 0;
-					// }
-					// else
-					// {
-						// tmp = txBuffer[txIndex];
-						// circularPut(cTxBuffer, &tmp);
-						// txIndex++;
-					// }
-				// }
-				// while(STOP_DELIMITER != tmp)
-				// if(STOP_DELIMITER == tmp)
-				// {
-					// state = EMISSION;
-				// }
-			
+				processFrameRx(rxBuffer, *rxIndex, port);
+			break;				
 			case EMISSION:
-				circularEmptyBuffer(cTxBuffer);
 				array2circular(cTxBuffer, txBuffer, *txIndex);
 				halUARTWrite(port, cTxBuffer, 0);
 				*txIndex = 0;
@@ -275,11 +264,23 @@ void communicationThread(void const *arg)
 			break;
 			default:
 				// error state!!!
-				break;
+			break;
 		}
 	}
 }
 
+//*****************************************************************************
+//
+//! Get the signal ID.
+//!
+//! \param deviceAddress is device address.
+//!
+//! For given a device address, this function returns the corresponding 
+//! signal ID.
+//!
+//! \return Returns signal ID, or -1 if \e deviceAddress is not supported.
+//
+//*****************************************************************************
 static uint8_t getSignalID(const uint16_t deviceAddress)
 {
 	uint8_t i;
@@ -294,13 +295,26 @@ static uint8_t getSignalID(const uint16_t deviceAddress)
 	return retVal;
 }
 
-uint8_t proccessFrameRx(uint8_t *frame,
-												uint8_t len,
-												uint8_t port
-												)
+//*****************************************************************************
+//
+//! Process received data.
+//!
+//! \param frame is pointer on the received frame.
+//! \param len is lenght of received frame.
+//! \param port is number of port.
+//!
+//! Function process received frame, converts, checks checksum and validation
+//! of signal ID (supported devices)
+//!
+//! \return Returns signal ID, or -1 if \e deviceAddress is not supported.
+//
+//*****************************************************************************
+static uint8_t processFrameRx(uint8_t *frame,
+															uint8_t len,
+															uint8_t port
+															)
 {
 	Data_t *cbData;
-	//DLLPacket_t *tmpRrcPack = recPack;
 	int iSignalID;
 	int iData;
 	int iPackNum;
@@ -318,35 +332,47 @@ uint8_t proccessFrameRx(uint8_t *frame,
 					 &iTimeStamp,
 					 &iCheckSum
 					 );
-		recPack.appData.devID = signalID[iSignalID];
-		recPack.appData.packNum = (uint32_t)iPackNum & 0xff;
-		recPack.appData.data = (uint32_t)iData & 0xffffffff;
-		recPack.timeStamp = (uint32_t)iTimeStamp & 0xff;
-		recPack.checkSum = (uint32_t)iCheckSum & 0xff;
+	recPack.appData.devID = signalID[iSignalID];
+	recPack.appData.packNum = (uint32_t)iPackNum & 0xff;
+	recPack.appData.data = (uint32_t)iData & 0xffffffff;
+	recPack.timeStamp = (uint32_t)iTimeStamp & 0xff;
+	recPack.checkSum = (uint32_t)iCheckSum & 0xff;
 		
-		cbData = (struct sData *)(&recPack);
+	cbData = (struct sData *)(&recPack);
 		
 
-//		if (checksum(recPack) == recPack->checkSum)
-//		{
-//			if (devAddressSupport(recPack->appData.devID))
-//			{
+//if (checksum(recPack) == recPack->checkSum)
+//{
+//	if (devAddressSupport(recPack->appData.devID))
+//	{
+			callBack(cbData, port);
 
-								callBack(cbData, port);
-
-//			}
-			return 0;
-//		}
-//	//	else
-//		{
-//			//error_checkSum();
-//			recPack = NULL;
-//			return 1;
-//		}
+//	}
+		return 1;
+//}
+//else
+//{
+//	error_checkSum();
+//	recPack = NULL;
+//	return 0;
+//}
 
 }
 
-uint8_t checksum(DLLPacket_t *frame)
+
+//*****************************************************************************
+//
+//! Calculating checksum.
+//!
+//! \param frame is pointer on frame on which one is needed to calculated.
+//!
+//! Function caluculates checksum executing XOR operation on evert member of
+//! \b frame.
+//!
+//! \return Returns result of sumary operation.
+//
+//*****************************************************************************
+static uint8_t checksum(DLLPacket_t *frame)
 {
 	uint8_t sum  = 0x00;
 	uint8_t *ptr = (uint8_t *)(frame);
@@ -361,6 +387,17 @@ uint8_t checksum(DLLPacket_t *frame)
 
 }
 
+//*****************************************************************************
+//
+//! Checks a devices address.
+//!
+//! \param devAddress is device address.
+//!
+//! This function determines if a device address is supported.
+//!
+//! \return Returns \b true if address is supported, or \b false otherwise.
+//
+//*****************************************************************************
 static uint8_t devAddressSupport(uint16_t devAddress)
 {
 	return( (devAddress == TEMP_SENSOR_INSIDE) ||
@@ -375,8 +412,21 @@ static uint8_t devAddressSupport(uint16_t devAddress)
 					);
 }
 
-
-void dllDataRequest(Data_t *aData, uint8_t port)
+//*****************************************************************************
+//
+//! Function that handles data services.
+//!
+//! \param aData is pointer on data structure.
+//! \param port indicates port number.
+//!
+//! This function prepare data to be ready to send and sets state flag to 
+//! signals the thread to perform an action.
+//!
+//! \return None.
+//
+//*****************************************************************************
+void dllDataRequest(Data_t *aData,
+										uint8_t port)
 {
 	DLLPacket_t emPacket;
 	emPacket.appData = *aData;

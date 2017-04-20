@@ -64,9 +64,10 @@ void updateData(Data_t *pData, uint8_t port)
 	if(i < 20)
 	{
 		DataID[i].data = pData->data;
+		dataReady = 1;
 	}
 	
-	dataReady = 1;
+	
 }
 
 
