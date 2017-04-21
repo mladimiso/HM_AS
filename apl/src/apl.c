@@ -13,15 +13,15 @@
 // treba promijeniti naziv ova dva bafera u circularBuffer.h
 //
 //*****************************************************************************
-extern uint8_t dataReady;
-
+extern uint8_t dataReadyPC;
+extern uint8_t dataReadyCC2530;
 
 //*****************************************************************************
 //
 // Local variables
 //
 //*****************************************************************************
-Data_t *app_packet;
+Data_t app_packet;
 static APLData_t DataID[20];
 //extern APLData_t DataID[20];
 
@@ -39,10 +39,10 @@ void aplInit(void)
 void aplSendData(uint32_t data, uint16_t devID, uint8_t port)
 {
   //DLLPacket_t *app_packet;
-  app_packet->data = data;
-  app_packet->devID = devID;
-	app_packet->packNum = 0;
-  dllDataRequest(app_packet, port);
+  app_packet.data = data;
+  app_packet.devID = devID;
+	app_packet.packNum = 0;
+  dllDataRequest(&app_packet, port);
 }
 
 
@@ -64,7 +64,15 @@ void updateData(Data_t *pData, uint8_t port)
 	if(i < 20)
 	{
 		DataID[i].data = pData->data;
-		dataReady = 1;
+		if (PC == port)
+		{
+			dataReadyPC = 1;
+		}
+		else if (CC2530 == port)
+		{
+			dataReadyCC2530 = 1;
+		}
+			
 	}
 	
 	

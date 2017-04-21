@@ -22,7 +22,8 @@ static const uint16_t signalID[] = {
 									MOTION_SENSOR
 									};
 
-
+static const uint8_t portPC = PC;
+static const uint8_t portCC2530 = CC2530;
 
 
 //*****************************************************************************
@@ -120,8 +121,7 @@ void dllInit(void)
 							0
 							);
 	
-	uint8_t portPC = PC;
-	uint8_t portCC2530 = CC2530;
+	
 	
 	statePC = IDLE;
 	stateCC2530 = IDLE;
@@ -216,6 +216,7 @@ void communicationThread(void const *arg)
 			case IDLE:
 				if (circularGet(cRxBuffer, tmp))	//zastita!!!
 				{
+					
 					if (START_DELIMITER == (*tmp))
 					{
 						*rxIndex = 0;
@@ -230,6 +231,7 @@ void communicationThread(void const *arg)
 				else if (EMISSION_START == (*emFlag))
 				{
 					*state = EMISSION;
+					*emFlag = 0;
 				}
 				
 				else
@@ -341,21 +343,20 @@ static uint8_t processFrameRx(uint8_t *frame,
 	cbData = (struct sData *)(&recPack);
 		
 
-//if (checksum(recPack) == recPack->checkSum)
-//{
-//	if (devAddressSupport(recPack->appData.devID))
-//	{
+	if (checksum(&recPack) == recPack.checkSum)
+	{
+		if (devAddressSupport(recPack.appData.devID))
+		{
 			callBack(cbData, port);
-
-//	}
+		}
 		return 1;
-//}
-//else
-//{
+	}
+	else
+	{
 //	error_checkSum();
-//	recPack = NULL;
-//	return 0;
-//}
+	//recPack = NULL;
+		return 0;
+	}
 
 }
 
@@ -440,7 +441,7 @@ void dllDataRequest(Data_t *aData,
 	if (PC == port)
 	{
 		txBufferPCIndex = sprintf(uiTxBufferPC,
-															">#%d,#%d,#%d,#%d,#%d",
+															">#%d,#%d,#%d,#%d,#%d<",
 															getSignalID(emPacket.appData.devID),
 															emPacket.appData.packNum,
 															emPacket.appData.data,

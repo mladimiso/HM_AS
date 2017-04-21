@@ -15,12 +15,8 @@
 typedef struct sAPLData_t
 {
 	uint16_t devID;
-  //uint16_t devAddress;
-	//uint8_t exist = 0;
 	uint8_t packNum;
 	uint32_t data;
-	
-	//uint32_t cmd;
 } APLData_t;
 #pragma pack(pop)
 

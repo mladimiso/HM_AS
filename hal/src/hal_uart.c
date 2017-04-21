@@ -88,7 +88,6 @@ void halUARTInit(void)
 	
 	#ifdef __CMSIS_RTOS__
 			circularInit(&rxBufferCC2530);
-			halGPIOOutput(HW_PORT_D, 0x03, 0);
 	#else
 		  circularInit(&rxBuffer1);
 	#endif
@@ -152,10 +151,10 @@ void halUARTInit(void)
 			
 			if(ulStatus & (UART_INT_RX))
 			{
-				halGPIOPinWrite(HW_PORT_D, 0x01, HIGH);
+				
 				tmp = (uint8_t)UARTCharGet(UART0_BASE);
 				circularPut(&rxBufferPC, tmp);
-				halGPIOPinWrite(HW_PORT_D, 0x01, LOW);
+				
 			}
 		
 	 #else
@@ -207,7 +206,7 @@ void halUARTInit(void)
 				while(UARTCharsAvail(UART1_BASE))
 				{
 						tmp = (uint8_t)UARTCharGet(UART1_BASE);
-			//			circularPut(&rxBuffer1, tmp);
+						circularPut(&rxBuffer1, tmp);
 				}	
 			}
 	 #endif
