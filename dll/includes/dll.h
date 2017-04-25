@@ -9,8 +9,8 @@
 // Defining supported devices IDs
 //
 //*****************************************************************************
-#define TEMP_SENSOR_INSIDE														0x1111
-#define TEMP_SENSOR_OUTSIDE														0x1112
+#define TEMP_SENSOR_INSIDE														0x1112
+#define TEMP_SENSOR_OUTSIDE														0x1111
 #define PRESSURE_SENSOR_INSIDE												0x1113
 #define PRESSURE_SENSOR_OUTSIDE												0x1114
 #define HUMIDITY_SENSOR_INSIDE												0x1115

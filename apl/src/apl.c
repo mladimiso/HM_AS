@@ -5,25 +5,42 @@
 #include "common/includes/includes.h"
 #include "common/includes/defines.h"
 
+//#define osObjectsPublic                     // define objects in main module
+//#include "osObjects.h"                      // RTOS object definitions
+#include "cmsis_os.h"
+
+#define DEV_CAPACITY												20
+#define REGULATION											0x3666
+#define REGULATION_OFFSET										31																	
+
+//
+//testing with mutex
+//
+osMutexId mID_sendDataLock;
+osMutexId mID_receivedDataLock;
+osMutexDef(mID_sendDataLock);
+osMutexDef(mID_receivedDataLock);
 
 
 
+//*****************************************************************************
+//
 // Extern variables
 //
-// treba promijeniti naziv ova dva bafera u circularBuffer.h
-//
 //*****************************************************************************
-extern uint8_t dataReadyPC;
-extern uint8_t dataReadyCC2530;
+extern uint8_t dataFromPC;
+extern uint8_t dataFromCC2530;
 
 //*****************************************************************************
 //
 // Local variables
 //
 //*****************************************************************************
-Data_t app_packet;
-static APLData_t DataID[20];
-//extern APLData_t DataID[20];
+static APLData_t DataID[DEV_CAPACITY];
+//static uint8_t dev_number;
+
+//static APLData_t userDataID[DEV_CAPACITY];
+
 
 //*****************************************************************************
 //
@@ -33,18 +50,36 @@ static APLData_t DataID[20];
 
 void aplInit(void)
 {
+	#ifdef STELLARIS_MAIN
+		halGPIOOutput(HW_PORT_D, 0xff, 0);
+		//halGPIOPinWrite(HW_PORT_D, 0x02, LOW);
+	
+	#else
+	#endif
 	CallBackRegister(updateData);
+	
+	mID_sendDataLock = osMutexCreate( osMutex(mID_sendDataLock));
+	mID_receivedDataLock = osMutexCreate( osMutex(mID_receivedDataLock));
 }
 
 void aplSendData(uint32_t data, uint16_t devID, uint8_t port)
 {
+	Data_t app_packet;
   //DLLPacket_t *app_packet;
-  app_packet.data = data;
-  app_packet.devID = devID;
-	app_packet.packNum = 0;
-  dllDataRequest(&app_packet, port);
+	osMutexWait(mID_sendDataLock, osWaitForever);
+   app_packet.data = data;
+   app_packet.devID = devID;
+	 app_packet.packNum = 0;
+   dllDataRequest(&app_packet, port);
+	osMutexRelease(mID_sendDataLock);
 }
 
+/*
+	for (int i = 0; i < dev_number; i++)
+	{
+		
+	}
+*/
 
 
 void updateData(Data_t *pData, uint8_t port)
@@ -54,32 +89,46 @@ void updateData(Data_t *pData, uint8_t port)
   {
     i++;
   }
-  if(DataID[i].devID == 0);//!= pData->devID)
+  if(DataID[i].devID == 0)//!= pData->devID)
 	//if(DataID[i].devID == pData->devID)
   {
+		//osMutexWait(mID_receivedDataLock, osWaitForever);
       DataID[i].devID = pData->devID;
-
+			//dev_number++;
+		//osMutexRelease(mID_receivedDataLock);
   }
 	
 	if(i < 20)
 	{
-		DataID[i].data = pData->data;
-		if (PC == port)
-		{
-			dataReadyPC = 1;
-		}
-		else if (CC2530 == port)
-		{
-			dataReadyCC2530 = 1;
-		}
+		//osMutexWait(mID_receivedDataLock, osWaitForever);
 			
+			if (PC == port)
+			{
+				if (REGULATION == (pData->data & 0x7fffffff))
+				{
+					DataID[i].regulation = (pData->data >> REGULATION_OFFSET) & 0x01;
+					dataFromPC = 2;
+				}
+				else
+				{
+					DataID[i].userData = pData->data;
+					dataFromPC = 1;
+				}
+			}
+			else if (CC2530 == port)
+			{
+				DataID[i].data = pData->data;
+				dataFromCC2530 = 1;
+			}
+		//osMutexRelease(mID_receivedDataLock);	
 	}
 	
 	
 }
 
 
-uint32_t getData(uint16_t devID)
+uint32_t getData(uint16_t devID, 
+								 uint8_t flag)
 {
   int i = 0;
   uint32_t data = 1500;
@@ -90,9 +139,70 @@ uint32_t getData(uint16_t devID)
   }
   if(DataID[i].devID == devID)
   {
-    data = DataID[i].data;
-  }
+		switch(flag)
+		{
+			case SENSOR:
+				osMutexWait(mID_receivedDataLock, osWaitForever);
+					data = DataID[i].data;
+				osMutexRelease(mID_receivedDataLock);
+				break;
+			case USER:
+				data = DataID[i].userData;
+				break;
+			case REGULATE:
+				data = DataID[i].regulation;
+				break;
+			default:
+				break;
+		}
+	}
   return data;
+}
+
+
+void regulateTemperature(uint8_t state,
+												 int16_t diference)
+{
+	#ifdef STELLARIS_MAIN
+		if (0 == diference)
+		{
+			//
+			//turn of aircond and heater
+			//
+			if ((HIGH << 0) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_0))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_0, LOW);
+			}
+			if ((HIGH << 1) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_1))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_1, LOW);
+			}
+		}
+		if (0 > diference)
+		{
+			if ((LOW << 0) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_0))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_0, HIGH);
+			}
+			if ((HIGH << 1) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_1))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_1, LOW);
+			}
+		}
+		else if (0 < diference)
+		{
+			if ((HIGH << 0) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_0))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_0, LOW);
+			}
+			if ((LOW << 1) == halGPIOPinRead(HW_PORT_D, GPIO_PIN_1))
+			{
+				halGPIOPinWrite(HW_PORT_D, GPIO_PIN_1, HIGH);
+			}
+		}
+	#else
+
+	#endif
 }
 
 /*void aplProcessCommand(void)

@@ -257,7 +257,7 @@ Status_t halGPIOOutput(Port_t port,
 				uiType = GPIO_PIN_TYPE_STD;
 				break;
 			case 1:
-				uiType = GPIO_PIN_TYPE_STD;
+				uiType = GPIO_PIN_TYPE_OD;
 				break;
 			default:
 				return GPIO_ERROR;

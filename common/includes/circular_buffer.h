@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define CAPACITY 256
+#define CAPACITY 128
 
 typedef struct circularBuffer 
 {

@@ -448,6 +448,7 @@ void dllDataRequest(Data_t *aData,
 															emPacket.timeStamp,
 															emPacket.checkSum
 															);
+			
 		emFlagPC = EMISSION_START;
 	}
 	else if (CC2530 == port)
