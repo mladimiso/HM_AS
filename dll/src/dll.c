@@ -95,6 +95,10 @@ DLLPacket_t recPack;
 
 static CallBack_t callBack;
 
+#ifdef DEBUG_MODE
+	CircularBuffer_t debugCBuffer;
+#endif
+
 //*****************************************************************************
 //
 // Function definition
@@ -132,9 +136,11 @@ void dllInit(void)
 	
 	circularInit(&cTxBufferPC);
 	circularInit(&cTxBufferCC2530);
-	
+#ifdef DEBUG_MODE
+		circularInit(&debugCBuffer);
+#endif
 	halUARTOpenPort(PC, BAUDRATE_PC , 1, 0);
-	halUARTOpenPort(CC2530, BAUDRATE_CC2530, 1, 0);
+	halUARTOpenPort(CC2530, 9600, 1, 0);
 	
 	tID_PC_Communication = osThreadCreate( osThread(communicationThread),
 																					(void *)(&portPC)
@@ -245,6 +251,11 @@ void communicationThread(void const *arg)
 				{
 					if (circularGet(cRxBuffer, tmp)) // zastita!!!
 					{
+
+						#ifdef DEBUG_MODE
+								circularPut(&debugCBuffer, *tmp);
+								halUARTWrite(PC, &debugCBuffer, 0);
+						#endif
 						if (START_DELIMITER == (*tmp))
 						{
 							*rxIndex = 0;
@@ -253,6 +264,7 @@ void communicationThread(void const *arg)
 						{
 							rxBuffer[(*rxIndex)++] = *tmp;
 						}
+						
 					}
 				} while(STOP_DELIMITER != *tmp);
 				*state = IDLE;				//
@@ -323,11 +335,7 @@ static uint8_t processFrameRx(uint8_t *frame,
 	int iTimeStamp;
 	int iCheckSum;
 	sscanf((char *)frame,
-					"%*[^0123456789]%d\
-					 %*[^0123456789]%d\
-					 %*[^0123456789]%d\
-					 %*[^0123456789]%d\
-					 %*[^0123456789]%d",
+					"%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d",
 					 &iSignalID,
 					 &iPackNum,
 					 &iData,
@@ -339,24 +347,25 @@ static uint8_t processFrameRx(uint8_t *frame,
 	recPack.appData.data = (uint32_t)iData & 0xffffffff;
 	recPack.timeStamp = (uint32_t)iTimeStamp & 0xff;
 	recPack.checkSum = (uint32_t)iCheckSum & 0xff;
-		
+	
+
 	cbData = (struct sData *)(&recPack);
 		
-
-	if (checksum(&recPack) == recPack.checkSum)
-	{
-		if (devAddressSupport(recPack.appData.devID))
-		{
+//	if (checksum(&recPack) == recPack.checkSum)
+//	{
+		
+//		if (devAddressSupport(recPack.appData.devID))
+//		{
 			callBack(cbData, port);
-		}
+//		}
 		return 1;
-	}
-	else
-	{
+//	}
+//	else
+//	{
 //	error_checkSum();
 	//recPack = NULL;
-		return 0;
-	}
+	//	return 0;
+//	}
 
 }
 
@@ -441,7 +450,7 @@ void dllDataRequest(Data_t *aData,
 	if (PC == port)
 	{
 		txBufferPCIndex = sprintf(uiTxBufferPC,
-															">#%d,#%d,#%d,#%d,#%d<",
+															">%d %d %d %d %d\n",
 															getSignalID(emPacket.appData.devID),
 															emPacket.appData.packNum,
 															emPacket.appData.data,
@@ -454,7 +463,7 @@ void dllDataRequest(Data_t *aData,
 	else if (CC2530 == port)
 	{
 		txBufferCC2530Index = sprintf(uiTxBufferCC2530,
-																	">#%d,#%d,#%d,#%d,#%d",
+																	">%d %d %d %d %d\n",
 																	getSignalID(emPacket.appData.devID),
 																	emPacket.appData.packNum,
 																	emPacket.appData.data,

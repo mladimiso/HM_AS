@@ -50,7 +50,7 @@ static APLData_t DataID[DEV_CAPACITY];
 
 void aplInit(void)
 {
-	#ifdef STELLARIS_MAIN
+	#if defined(STELLARIS) && true == STELLARIS
 		halGPIOOutput(HW_PORT_D, 0xff, 0);
 		//halGPIOPinWrite(HW_PORT_D, 0x02, LOW);
 	
@@ -84,6 +84,7 @@ void aplSendData(uint32_t data, uint16_t devID, uint8_t port)
 
 void updateData(Data_t *pData, uint8_t port)
 {
+
   int i = 0;
   while(DataID[i].devID != 0 && DataID[i].devID != pData->devID && i<20)
   {
@@ -163,7 +164,7 @@ uint32_t getData(uint16_t devID,
 void regulateTemperature(uint8_t state,
 												 int16_t diference)
 {
-	#ifdef STELLARIS_MAIN
+	#if defined(STELLARIS) && true == STELLARIS 
 		if (0 == diference)
 		{
 			//
@@ -204,6 +205,7 @@ void regulateTemperature(uint8_t state,
 
 	#endif
 }
+
 
 /*void aplProcessCommand(void)
 {

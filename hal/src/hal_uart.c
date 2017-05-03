@@ -151,10 +151,18 @@ void halUARTInit(void)
 			
 			if(ulStatus & (UART_INT_RX))
 			{
-				
-				tmp = (uint8_t)UARTCharGet(UART0_BASE);
-				circularPut(&rxBufferPC, tmp);
-				
+				while(UARTCharsAvail(UART0_BASE))
+				{
+					tmp = (uint8_t)UARTCharGet(UART0_BASE);
+				#if defined(DEBUG_MODE_ISR) && (true == DEBUG_MODE_ISR)
+					UARTCharPut(UART0_BASE, 'A');
+					UARTCharPut(UART0_BASE, tmp);
+					UARTCharPut(UART0_BASE, 13);
+					UARTCharPut(UART0_BASE, 10);
+				#else 				
+					circularPut(&rxBufferPC, tmp);
+				#endif
+			}
 			}
 		
 	 #else
@@ -188,8 +196,18 @@ void halUARTInit(void)
 			
 			if(ulStatus & (UART_INT_RX))
 			{
-				 tmp = (uint8_t)UARTCharGet(UART1_BASE);
-				 circularPut(&rxBufferCC2530, tmp);
+				while(UARTCharsAvail(UART1_BASE))
+					{
+						tmp = (uint8_t)UARTCharGet(UART1_BASE);
+				#if defined(DEBUG_MODE_ISR) && (true == DEBUG_MODE_ISR)
+					UARTCharPut(UART0_BASE, 'B');
+					UARTCharPut(UART0_BASE, tmp);
+					UARTCharPut(UART0_BASE, 13);
+					UARTCharPut(UART0_BASE, 10);
+				#else
+						circularPut(&rxBufferCC2530, tmp);
+				#endif
+			 }
 			}
 		
 	
