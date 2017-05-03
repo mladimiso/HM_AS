@@ -51,6 +51,8 @@ static uint8_t devAddressSupport(uint16_t devAddress);
 void communicationThread(void const *arg);
 osThreadId tID_PC_Communication;
 osThreadId tID_CC2530_Communication;
+osMutexId mID_uartDataLock;
+osMutexDef(mID_uartDataLock);
 
 
 //*****************************************************************************
@@ -140,7 +142,7 @@ void dllInit(void)
 		circularInit(&debugCBuffer);
 #endif
 	halUARTOpenPort(PC, BAUDRATE_PC , 1, 0);
-	halUARTOpenPort(CC2530, 9600, 1, 0);
+	halUARTOpenPort(CC2530, BAUDRATE_CC2530, 1, 0);
 	
 	tID_PC_Communication = osThreadCreate( osThread(communicationThread),
 																					(void *)(&portPC)
@@ -148,6 +150,8 @@ void dllInit(void)
 	tID_CC2530_Communication = osThreadCreate( osThread(communicationThread),
 																					(void *)(&portCC2530)
 																					);
+	mID_uartDataLock = osMutexCreate( osMutex(mID_uartDataLock));																				
+  
 }
 
 //*****************************************************************************
@@ -271,10 +275,13 @@ void communicationThread(void const *arg)
 				processFrameRx(rxBuffer, *rxIndex, port);
 			break;				
 			case EMISSION:
-				array2circular(cTxBuffer, txBuffer, *txIndex);
-				halUARTWrite(port, cTxBuffer, 0);
-				*txIndex = 0;
-				*state = IDLE;
+				osMutexWait(mID_uartDataLock, osWaitForever);
+				 circularEmptyBuffer(cTxBuffer);
+				 array2circular(cTxBuffer, txBuffer, *txIndex);
+				 halUARTWrite(port, cTxBuffer, 0);
+				 *txIndex = 0;
+				 *state = IDLE;
+			  osMutexRelease(mID_uartDataLock);
 			break;
 			default:
 				// error state!!!
@@ -353,18 +360,18 @@ static uint8_t processFrameRx(uint8_t *frame,
 		
 //	if (checksum(&recPack) == recPack.checkSum)
 //	{
-		
+//		
 //		if (devAddressSupport(recPack.appData.devID))
 //		{
 			callBack(cbData, port);
 //		}
-		return 1;
+//		return 1;
 //	}
 //	else
 //	{
-//	error_checkSum();
-	//recPack = NULL;
-	//	return 0;
+////	error_checkSum();
+////	recPack = NULL;
+		return 0;
 //	}
 
 }
@@ -392,7 +399,8 @@ static uint8_t checksum(DLLPacket_t *frame)
 		sum ^= *ptr;
 		ptr++;
 	}
-
+//	UARTCharPut(UART0_BASE, 'C');
+//	UARTCharPut(UART0_BASE, sum);
 	return sum;
 
 }

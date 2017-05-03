@@ -18,7 +18,7 @@
 //*****************************************************************************
 #define __CMSIS_RTOS__
 #define STELLARIS																				true
-#define STELLARIS_STELARIS															false//true
+#define STELLARIS_STELARIS															true//false
 #define HAL_UART0																				true
 #define HAL_UART1																				true
 #define PORT_D

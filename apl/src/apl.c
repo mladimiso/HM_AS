@@ -11,7 +11,7 @@
 
 #define DEV_CAPACITY												20
 #define REGULATION											0x3666
-#define REGULATION_OFFSET										31																	
+#define REGULATION_OFFSET										15																	
 
 //
 //testing with mutex
@@ -90,6 +90,7 @@ void updateData(Data_t *pData, uint8_t port)
   {
     i++;
   }
+	osMutexWait(mID_receivedDataLock, osWaitForever);
   if(DataID[i].devID == 0)//!= pData->devID)
 	//if(DataID[i].devID == pData->devID)
   {
@@ -105,7 +106,7 @@ void updateData(Data_t *pData, uint8_t port)
 			
 			if (PC == port)
 			{
-				if (REGULATION == (pData->data & 0x7fffffff))
+				if (REGULATION == (pData->data & 0x7fff))
 				{
 					DataID[i].regulation = (pData->data >> REGULATION_OFFSET) & 0x01;
 					dataFromPC = 2;
@@ -123,7 +124,7 @@ void updateData(Data_t *pData, uint8_t port)
 			}
 		//osMutexRelease(mID_receivedDataLock);	
 	}
-	
+	osMutexRelease(mID_receivedDataLock);
 	
 }
 
@@ -138,14 +139,13 @@ uint32_t getData(uint16_t devID,
   {
     i++;
   }
+	osMutexWait(mID_receivedDataLock, osWaitForever);
   if(DataID[i].devID == devID)
   {
 		switch(flag)
 		{
 			case SENSOR:
-				osMutexWait(mID_receivedDataLock, osWaitForever);
-					data = DataID[i].data;
-				osMutexRelease(mID_receivedDataLock);
+				data = DataID[i].data;
 				break;
 			case USER:
 				data = DataID[i].userData;
@@ -157,6 +157,7 @@ uint32_t getData(uint16_t devID,
 				break;
 		}
 	}
+	osMutexRelease(mID_receivedDataLock);
   return data;
 }
 
