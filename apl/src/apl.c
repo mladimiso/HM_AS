@@ -9,6 +9,8 @@
 //#include "osObjects.h"                      // RTOS object definitions
 #include "cmsis_os.h"
 
+
+
 #define DEV_CAPACITY												20
 #define REGULATION											0x3666
 #define REGULATION_OFFSET										15																	
@@ -103,24 +105,52 @@ void updateData(Data_t *pData, uint8_t port)
 	if(i < 20)
 	{
 		//osMutexWait(mID_receivedDataLock, osWaitForever);
+//			switch (DataID[i].devID)
+//			{
+//				case TEMP_SENSOR_INSIDE:
+//					
+//					break;
+//				case TEMP_SENSOR_OUTSIDE:
+//					break;
+//				case PRESSURE_SENSOR_INSIDE:
+//					break;
+//				case PRESSURE_SENSOR_OUTSIDE:
+//					break;
+//				case HUMIDITY_SENSOR_INSIDE:
+//					break;
+//			  case HUMIDITY_SENSOR_OUTSIDE:
+//					break;
+//				case DOOR:
+//					break;
+//				case WINDOW:
+//					break;
+//				case MOTION_SENSOR:
+//					break;
+//				
+//				default:
+//					break;
 			
+	//		}
 			if (PC == port)
 			{
 				if (REGULATION == (pData->data & 0x7fff))
 				{
 					DataID[i].regulation = (pData->data >> REGULATION_OFFSET) & 0x01;
-					dataFromPC = 2;
+					//dataFromPC = 2;
+					DataID[i].status |= PC_REGULATION;
 				}
 				else
 				{
 					DataID[i].userData = pData->data;
-					dataFromPC = 1;
+					//dataFromPC = 1;
+					DataID[i].status |= PC_VALUE;
 				}
 			}
 			else if (CC2530 == port)
 			{
 				DataID[i].data = pData->data;
-				dataFromCC2530 = 1;
+				//dataFromCC2530 = 1;
+				DataID[i].status |= CC_MONITOR;
 			}
 		//osMutexRelease(mID_receivedDataLock);	
 	}
@@ -128,12 +158,31 @@ void updateData(Data_t *pData, uint8_t port)
 	
 }
 
+void resetStatus(uint16_t devID, 
+									uint8_t value)
+{
+	int i = 0;
+  while(DataID[i].devID != devID && i < 20)
+  {
+    i++;
+  }
+	osMutexWait(mID_receivedDataLock, osWaitForever);
+  if(DataID[i].devID == devID)
+  {
+		DataID[i].status &= ~(value);
+	}
+	
+	osMutexRelease(mID_receivedDataLock);
+  
+}
+
+
 
 uint32_t getData(uint16_t devID, 
 								 uint8_t flag)
 {
   int i = 0;
-  uint32_t data = 1500;
+  uint32_t data = 555555;
   while(DataID[i].devID != devID && i < 20) //
 	//while(DataID[i].devID != 0 && DataID[i].devID != devID && i < 20)
   {
@@ -152,6 +201,10 @@ uint32_t getData(uint16_t devID,
 				break;
 			case REGULATE:
 				data = DataID[i].regulation;
+				break;
+			case STATUS:
+				data = DataID[i].status;
+				//DataID[i].status = 0;
 				break;
 			default:
 				break;

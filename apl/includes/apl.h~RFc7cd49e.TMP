@@ -11,9 +11,9 @@
 #define REGULATE												0xbb
 #define STATUS													0xcc
 
-#define CC_MONITOR											0x04
-#define PC_VALUE												0x01
-#define PC_REGULATION										0x02
+#define CC_MONITOR											3
+#define PC_VALUE												1
+#define PC_REGULATION										2
 
 #define ON										0x01
 #define OFF										0x00
@@ -29,9 +29,6 @@
 #define TEMP_OFFSET_25										25
 #define TEMP_OFFSET_50										50	
 #define TEMP_OFFSET_100									 100
-#define PC_VAL_OFFSET											0
-#define CC_OFFSET													2
-#define PC_REG_OFFSET											1
 
 //*****************************************************************************
 //
@@ -62,8 +59,7 @@ void aplInit(void);
 void aplSendData(uint32_t data, uint16_t devID, uint8_t port);
 void aplProcessCommand(void);
 void updateData(Data_t *pData, uint8_t port);
-void resetStatus(uint16_t devID, 
-									uint8_t value);
+
 uint32_t getData(uint16_t devID,
 								 uint8_t flag
 								 );

@@ -471,7 +471,7 @@ void dllDataRequest(Data_t *aData,
 	else if (CC2530 == port)
 	{
 		txBufferCC2530Index = sprintf(uiTxBufferCC2530,
-																	">%d %d %d %d %d\n",
+																	">#%d %d %d %d %d\n",
 																	getSignalID(emPacket.appData.devID),
 																	emPacket.appData.packNum,
 																	emPacket.appData.data,

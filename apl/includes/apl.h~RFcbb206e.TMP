@@ -29,9 +29,6 @@
 #define TEMP_OFFSET_25										25
 #define TEMP_OFFSET_50										50	
 #define TEMP_OFFSET_100									 100
-#define PC_VAL_OFFSET											0
-#define CC_OFFSET													2
-#define PC_REG_OFFSET											1
 
 //*****************************************************************************
 //

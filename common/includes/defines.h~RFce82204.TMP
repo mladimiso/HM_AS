@@ -1,25 +1,27 @@
 #ifndef __DEFINES_H__
 #define __DEFINES_H__
 
+#define PART_LM3S9B90
+
+//#define DEBUG_MODE
+#define DEBUG_MODE_ISR				false
+
 //#define HAL_UART0			true			// for interrupts enable - \b true, else \b false
 //#define HAL_UART1			true			// for interrupts enable - \b true, else \b false
 //#define	HAL_UART2			true			// for interrupts enable - \b true, else \b false
 
 
-//*****************************************************************************
-// defines for config
-//*****************************************************************************
-//#define DEBUG_MODE
-#define PART_LM3S9B90
-#define __CMSIS_RTOS__
 
-#define PORT_D
-#define DEBUG_MODE_ISR																	false
+
+//*****************************************************************************
+// just for testing
+//*****************************************************************************
+#define __CMSIS_RTOS__
 #define STELLARIS																				true
-#define STELLARIS_STELARIS															false//true
+#define STELLARIS_STELARIS															true//false
 #define HAL_UART0																				true
 #define HAL_UART1																				true
-	
+#define PORT_D
 #define PC																							0x00
 #define CC2530																					0x01
 #define BAUDRATE_PC																		115200
